@@ -15,19 +15,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-//#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #include "abbott.h"
-
-char *strsep(char **stringp, const char *delim);
-long long
-strtonum(const char *numstr, long long minval, long long maxval,
-    const char **errstrp);
-
 
 int dev_cmp(const void *k, const void *e);
 int rev_cmp(const void *k, const void *e);
