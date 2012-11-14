@@ -126,7 +126,7 @@ abbott_parse_entry(char *p, struct abbott_entry *entry)
 	char			*p2;
 	const char		*errstr;
 	struct monthlist	*m;
-	int			 sugar, yearint;
+	int			 glucose, yearint;
 
 	/* Keep sorted */
 	struct monthlist mlist[] = {
@@ -150,7 +150,7 @@ abbott_parse_entry(char *p, struct abbott_entry *entry)
 		goto fail;
 
 	errstr = NULL; /* XXX: only necessary one time */
-	sugar = strtonum(p, 0, 400, &errstr); /* XXX: change 400 to sth decent */
+	glucose = strtonum(p, 0, 400, &errstr); /* XXX: change 400 to sth decent */
 	if (errstr)
 		goto fail;
 
@@ -210,7 +210,7 @@ abbott_parse_entry(char *p, struct abbott_entry *entry)
 	if (errstr)
 		goto fail;
 #if 0
-	printf("sugar: %d\n", sugar);
+	printf("glucose: %d\n", glucose);
 	printf("month: %d\n", entry.ptm.tm_mon);
 	printf("day: %d\n", entry.ptm.tm_mday);
 	printf("year: %d\n", yearint);
