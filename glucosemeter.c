@@ -41,6 +41,7 @@ struct gm_state {
 	size_t			nconns;
 
 	sqlite3			*sqlite3_handle;
+	GtkTreeModel		 measurements;
 };
 
 static gboolean gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data);
@@ -267,6 +268,41 @@ menu_listview(void)
 	gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(view), FALSE);
 
 	return view;
+}
+
+struct gm_dummy_conn {
+	struct gm_driver_conn	conn;
+};
+
+gboolean
+gm_dummy_cb(gpointer user)
+{
+	struct gm_state *state = user;
+	GtkTreeModel *store = state->measurements;
+	GtkTreeIter	 iter;
+
+	gtk_list_store_append(store, &iter);
+
+	gtk_list_store_set(store, &iter, GM_MEAS_COL_GLUCOSE, 100, -1);
+	gtk_list_store_set(store, &iter, GM_MEAS_COL_DATE, "date", -1);
+	gtk_list_store_set(store, &iter, GM_MEAS_COL_DEVICE, "device", -1);
+
+	return FALSE;
+}
+
+struct gm_dummy_conn *
+gm_dummy_conn_init(struct gm_state *state)
+{
+	struct gm_dummy_conn *conn;
+
+	conn = calloc(1, sizeof(*conn));
+	if (conn == NULL) {
+		return NULL;
+	}
+
+	g_timeout_add_seconds(10, gm_dummy_cb, state);
+
+	return conn;
 }
 
 struct gm_abbott_conn {
@@ -526,14 +562,24 @@ progress_dialog_new(void)
 int
 gm_process_config(struct gm_state *state)
 {
-	struct gm_abbott_conn *abbott_conn;
+	struct gm_abbott_conn	*abbott_conn;
+	struct gm_dummy_conn	*dummy_conn;
 
+#if 0
 	abbott_conn = gm_abbott_conn_init("/dev/ttyU0");
 	if (abbott_conn == NULL) {
 		return -1;
 	}
 
 	state->conns[state->nconns++] = (struct gm_generic_conn *)abbott_conn;
+#else
+	dummy_conn = gm_dummy_conn_init(state);
+	if (dummy_conn == NULL) {
+		return -1;
+	}
+
+	state->conns[state->nconns++] = (struct gm_generic_conn *)dummy_conn;
+#endif
 
 	return 0;
 }
