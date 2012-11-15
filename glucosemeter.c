@@ -52,8 +52,8 @@ int gm_process_config(struct gm_state *state);
 void meas_change_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
 void meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
 
-#define COL_DATE 0
-#define COL_GLUCOSE 1
+#define COL_GLUCOSE 0
+#define COL_DATE 1
 #define NUM_COLS 2
 
 void
@@ -93,6 +93,24 @@ meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path,
 	printf("idate: %s\n", date);
 }
 
+int
+meas_orm(void *user, int ncolumns, char **columns, char **column_names)
+{
+	GtkTreeIter	 iter;
+	GtkListStore	*store = user;
+	int i;
+
+	gtk_list_store_append(store, &iter);
+
+	for (i = 0; i < ncolumns; i++) {
+		if (strcmp(column_names[i], "glucose") == 0)
+			gtk_list_store_set(store, &iter, COL_GLUCOSE, columns[i], -1);
+		if (strcmp(column_names[i], "date") == 0)
+			gtk_list_store_set(store, &iter, COL_DATE, columns[i], -1);
+	}
+
+	return 0;
+}
 
 static GtkTreeModel *
 meas_model(struct gm_state *state)
@@ -110,10 +128,16 @@ meas_model(struct gm_state *state)
 	if (r != SQLITE_OK) {
 		return NULL;
 	}
-  
+
 	store = gtk_list_store_new(NUM_COLS, G_TYPE_STRING, G_TYPE_UINT);
 
-	/* XXX: Read the existing database entries into the store */
+	/* Fill the measurement store with entries from the database */
+	r = sqlite3_exec(state->sqlite3_handle, "SELECT * from measurements",
+		meas_orm, store, &errmsg);
+
+	if (r != SQLITE_OK) {
+		return NULL;
+	}
 
 	r = sqlite3_prepare_v2(state->sqlite3_handle, "INSERT INTO measurements VALUES " \
 		" (?, ?, ?);", -1, &insert_stmt, &sql_tail);
@@ -132,9 +156,6 @@ meas_model(struct gm_state *state)
 	g_signal_connect(store, "row-changed", G_CALLBACK(meas_insert_cb), state);
 	g_signal_connect(store, "row-inserted", G_CALLBACK(meas_change_cb), state);
 
-	gtk_list_store_append(store, &iter);
-	gtk_list_store_set(store, &iter, COL_DATE, "test", -1);
-
 	return GTK_TREE_MODEL(store);
 }
 
@@ -149,6 +170,8 @@ glucose_listview(GtkTreeModel *model)
 	renderer = gtk_cell_renderer_text_new();
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view), -1,
 		"Date", renderer, "text", COL_DATE, NULL);
+	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view), -1,
+		"Glucose", renderer, "text", COL_GLUCOSE, NULL);
 
 	gtk_tree_view_set_model(GTK_TREE_VIEW(view), model);
 
