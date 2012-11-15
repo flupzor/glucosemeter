@@ -51,10 +51,12 @@ int gm_abbott_device_init(char *dev);
 int gm_process_config(struct gm_state *state);
 void meas_change_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
 void meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
+int meas_orm(void *user, int ncolumns, char **columns, char **column_names);
 
-#define COL_GLUCOSE 0
-#define COL_DATE 1
-#define NUM_COLS 2
+#define GM_MEAS_COL_GLUCOSE 0
+#define GM_MEAS_COL_DATE 1
+#define GM_MEAS_COL_DEVICE 2
+#define GM_MEAS_NUM_COLS 3
 
 void
 meas_change_cb(GtkTreeModel *model, GtkTreePath  *path,
@@ -64,7 +66,7 @@ meas_change_cb(GtkTreeModel *model, GtkTreePath  *path,
 
 	printf("changed!\n");
 
-	gtk_tree_model_get(model, iter, COL_DATE, &date, -1);
+	gtk_tree_model_get(model, iter, GM_MEAS_COL_DATE, &date, -1);
 
 	printf("date: %s\n", date);
 
@@ -75,7 +77,8 @@ void
 meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path,
 	GtkTreeIter  *iter, gpointer user_data)
 {
-	gchar		*date = NULL;
+	gchar		*date = NULL, *device = NULL;
+	gint		 glucose;
 	sqlite3_stmt	*stmt;
 	int r;
 
@@ -83,14 +86,26 @@ meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path,
 	if (stmt == NULL)
 		return;
 
-	gtk_tree_model_get(model, iter, COL_DATE, &date, -1);
+	gtk_tree_model_get(model, iter, GM_MEAS_COL_GLUCOSE, &glucose, -1);
 
-	r = sqlite3_bind_text(stmt, 1, date, -1, NULL);
-	if (r != SQLITE3_OK)
+	r = sqlite3_bind_int(stmt, 1, glucose);
+	if (r != SQLITE_OK)
+		goto fail;
+
+	gtk_tree_model_get(model, iter, GM_MEAS_COL_DATE, &date, -1);
+
+	r = sqlite3_bind_text(stmt, 2, date, -1, NULL);
+	if (r != SQLITE_OK)
+		goto fail;
+
+	gtk_tree_model_get(model, iter, GM_MEAS_COL_DEVICE, &device, -1);
+
+	r = sqlite3_bind_text(stmt, 2, device, -1, NULL);
+	if (r != SQLITE_OK)
 		goto fail;
 
 	r = sqlite3_step(stmt);
-	if (r != SQLITE3_DONE)
+	if (r != SQLITE_DONE)
 		goto fail;
 
 fail:
@@ -107,10 +122,14 @@ meas_orm(void *user, int ncolumns, char **columns, char **column_names)
 	gtk_list_store_append(store, &iter);
 
 	for (i = 0; i < ncolumns; i++) {
-		if (strcmp(column_names[i], "glucose") == 0)
-			gtk_list_store_set(store, &iter, COL_GLUCOSE, columns[i], -1);
+		if (strcmp(column_names[i], "glucose") == 0) 
+			/* XXX: replace atoi with strtonum or use a better
+			 * method to receive the sqlite columns */
+			gtk_list_store_set(store, &iter, GM_MEAS_COL_GLUCOSE, atoi(columns[i]), -1);
 		if (strcmp(column_names[i], "date") == 0)
-			gtk_list_store_set(store, &iter, COL_DATE, columns[i], -1);
+			gtk_list_store_set(store, &iter, GM_MEAS_COL_DATE, columns[i], -1);
+		if (strcmp(column_names[i], "device") == 0)
+			gtk_list_store_set(store, &iter, GM_MEAS_COL_DEVICE, columns[i], -1);
 	}
 
 	return 0;
@@ -127,12 +146,12 @@ meas_model(struct gm_state *state)
 	const char	*sql_tail;
 
 	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
-		" (glucose string, date string, device string)", NULL, NULL, &errmsg);
+		" (glucose integer, date string, device string)", NULL, NULL, &errmsg);
 	if (r != SQLITE_OK) {
 		return NULL;
 	}
 
-	store = gtk_list_store_new(NUM_COLS, G_TYPE_STRING, G_TYPE_UINT);
+	store = gtk_list_store_new(GM_MEAS_NUM_COLS, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
 
 	/* Fill the measurement store with entries from the database */
 	r = sqlite3_exec(state->sqlite3_handle, "SELECT * from measurements",
@@ -168,9 +187,11 @@ glucose_listview(GtkTreeModel *model)
 
 	renderer = gtk_cell_renderer_text_new();
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view), -1,
-		"Date", renderer, "text", COL_DATE, NULL);
+		"Date", renderer, "text", GM_MEAS_COL_DATE, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view), -1,
-		"Glucose", renderer, "text", COL_GLUCOSE, NULL);
+		"Glucose", renderer, "text", GM_MEAS_COL_GLUCOSE, NULL);
+	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view), -1,
+		"Device", renderer, "text", GM_MEAS_COL_DEVICE, NULL);
 
 	gtk_tree_view_set_model(GTK_TREE_VIEW(view), model);
 
@@ -179,8 +200,8 @@ glucose_listview(GtkTreeModel *model)
 	return view;
 }
 
-#define MENU_COL_NAME 0
-#define MENU_NUM_COLS 2
+#define GM_MENU_COL_NAME 0
+#define GM_MENU_NUM_COLS 2
 
 static GtkTreeModel *
 menu_listmodel(void)
@@ -188,10 +209,10 @@ menu_listmodel(void)
 	GtkListStore	*store;
 	GtkTreeIter	iter;
   
-	store = gtk_list_store_new(MENU_NUM_COLS, G_TYPE_STRING, G_TYPE_UINT);
+	store = gtk_list_store_new(GM_MENU_NUM_COLS, G_TYPE_STRING, G_TYPE_UINT);
 
 	gtk_list_store_append(store, &iter);
-	gtk_list_store_set(store, &iter, MENU_COL_NAME, "bla", -1);
+	gtk_list_store_set(store, &iter, GM_MENU_COL_NAME, "bla", -1);
 
 	return GTK_TREE_MODEL(store);
 }
@@ -208,7 +229,7 @@ menu_listview_select(GtkTreeSelection *selection, GtkTreeModel *model,
 		return TRUE;
 	}
 
-	gtk_tree_model_get(model, &iter, MENU_COL_NAME, &name, -1);
+	gtk_tree_model_get(model, &iter, GM_MENU_COL_NAME, &name, -1);
 
 	if(!path_currently_selected)
 		g_print("%s is going to be selected.\n", name);
@@ -236,7 +257,7 @@ menu_listview(void)
 	renderer = gtk_cell_renderer_text_new();
 
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view), -1,
-		"Item", renderer, "text", MENU_COL_NAME, NULL);
+		"Item", renderer, "text", GM_MENU_COL_NAME, NULL);
 
 	model = menu_listmodel();
 	gtk_tree_view_set_model(GTK_TREE_VIEW(view), model);
