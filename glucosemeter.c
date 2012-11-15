@@ -75,8 +75,9 @@ void
 meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path,
 	GtkTreeIter  *iter, gpointer user_data)
 {
-	gchar		*date;
+	gchar		*date = NULL;
 	sqlite3_stmt	*stmt;
+	int r;
 
 	stmt = g_object_get_data(G_OBJECT(model), "insert_stmt");
 	if (stmt == NULL)
@@ -84,13 +85,16 @@ meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path,
 
 	gtk_tree_model_get(model, iter, COL_DATE, &date, -1);
 
-	sqlite3_bind_text(stmt, 1, date, -1, NULL);
+	r = sqlite3_bind_text(stmt, 1, date, -1, NULL);
+	if (r != SQLITE3_OK)
+		goto fail;
 
-	sqlite3_step(stmt);
+	r = sqlite3_step(stmt);
+	if (r != SQLITE3_DONE)
+		goto fail;
 
-	// XXX: free date.
-
-	printf("idate: %s\n", date);
+fail:
+	g_free(date);
 }
 
 int
@@ -124,7 +128,6 @@ meas_model(struct gm_state *state)
 
 	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
 		" (glucose string, date string, device string)", NULL, NULL, &errmsg);
-
 	if (r != SQLITE_OK) {
 		return NULL;
 	}
@@ -134,14 +137,12 @@ meas_model(struct gm_state *state)
 	/* Fill the measurement store with entries from the database */
 	r = sqlite3_exec(state->sqlite3_handle, "SELECT * from measurements",
 		meas_orm, store, &errmsg);
-
 	if (r != SQLITE_OK) {
 		return NULL;
 	}
 
 	r = sqlite3_prepare_v2(state->sqlite3_handle, "INSERT INTO measurements VALUES " \
 		" (?, ?, ?);", -1, &insert_stmt, &sql_tail);
-
 	if (r != SQLITE_OK) {
 		return NULL;
 	}
@@ -150,8 +151,6 @@ meas_model(struct gm_state *state)
 
 	g_object_set_data_full(G_OBJECT(store), "change_stmt", change_stmt, g_object_unref);
 	g_object_set_data_full(G_OBJECT(store), "delete_stmt", delete_stmt, g_object_unref);
-
-	/* XXX: the statements should be freed too */
 
 	g_signal_connect(store, "row-changed", G_CALLBACK(meas_insert_cb), state);
 	g_signal_connect(store, "row-inserted", G_CALLBACK(meas_change_cb), state);
