@@ -44,6 +44,38 @@ struct gm_state {
 	GtkTreeModel		*measurements;
 };
 
+struct gm_dummy_conn {
+	struct gm_driver_conn	conn;
+};
+
+struct gm_abbott_conn {
+	struct gm_driver_conn	conn;
+	/*
+	 * Send MEM
+	 * Device type
+	 * Software revision
+	 * CurrentDateTime
+	 * Number of results
+	 * Resultline
+	 * END
+	 * EMPTY
+	 *
+	 */
+	enum abbott_protocol_state {
+		ABBOTT_SEND_MEM,
+		ABBOTT_DEVICE_TYPE,
+		ABBOTT_SOFTWARE_REVISION,
+		ABBOTT_CURRENTDATETIME,
+		ABBOTT_NUMBEROFRESULTS,
+		ABBOTT_RESULTLINE,
+		ABBOTT_END,
+		ABBOTT_EMPTY,
+	} protocol_state;
+	uint16_t checksum;
+};
+
+gboolean gm_dummy_cb(gpointer user);
+struct gm_dummy_conn *gm_dummy_conn_init(struct gm_state *state);
 static gboolean gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data);
 static gboolean gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data);
 static gboolean gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointer data);
@@ -214,22 +246,10 @@ menu_listview(void)
 	return view;
 }
 
-struct gm_dummy_conn {
-	struct gm_driver_conn	conn;
-};
-
 gboolean
 gm_dummy_cb(gpointer user)
 {
 	struct gm_state *state = user;
-	GtkTreeModel *store = state->measurements;
-	GtkTreeIter	 iter;
-
-	gtk_list_store_append(store, &iter);
-
-	gtk_list_store_set(store, &iter, GM_MEAS_COL_GLUCOSE, 100, -1);
-	gtk_list_store_set(store, &iter, GM_MEAS_COL_DATE, "date", -1);
-	gtk_list_store_set(store, &iter, GM_MEAS_COL_DEVICE, "device", -1);
 
 	return FALSE;
 }
@@ -248,32 +268,6 @@ gm_dummy_conn_init(struct gm_state *state)
 
 	return conn;
 }
-
-struct gm_abbott_conn {
-	struct gm_driver_conn	conn;
-	/*
-	 * Send MEM
-	 * Device type
-	 * Software revision
-	 * CurrentDateTime
-	 * Number of results
-	 * Resultline
-	 * END
-	 * EMPTY
-	 *
-	 */
-	enum abbott_protocol_state {
-		ABBOTT_SEND_MEM,
-		ABBOTT_DEVICE_TYPE,
-		ABBOTT_SOFTWARE_REVISION,
-		ABBOTT_CURRENTDATETIME,
-		ABBOTT_NUMBEROFRESULTS,
-		ABBOTT_RESULTLINE,
-		ABBOTT_END,
-		ABBOTT_EMPTY,
-	} protocol_state;
-	uint16_t checksum;
-};
 
 int
 gm_abbott_device_init(char *dev)
