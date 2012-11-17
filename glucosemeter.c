@@ -148,6 +148,7 @@ meas_model(struct gm_state *state)
 	r = sqlite3_exec(state->sqlite3_handle, "SELECT * from measurements",
 		meas_orm, store, &errmsg);
 	if (r != SQLITE_OK) {
+		g_object_unref(store);
 		return NULL;
 	}
 
