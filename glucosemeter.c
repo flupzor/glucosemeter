@@ -99,7 +99,7 @@ meas_model(struct gm_state *state)
 	const char	*sql_tail;
 
 	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
-		" (id INTEGER PRIMARY KEY, glucose INTEGER, date DATETIME, device VARCHAR(255), " \
+		" (glucose INTEGER, date DATETIME, device VARCHAR(255), " \
 		" UNIQUE (glucose, date, device))", NULL, NULL, &errmsg);
 	if (r != SQLITE_OK) {
 		return NULL;
