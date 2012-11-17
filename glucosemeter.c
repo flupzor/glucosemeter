@@ -82,6 +82,7 @@ static gboolean gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointe
 struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
 int gm_abbott_device_init(char *dev);
 int gm_process_config(struct gm_state *state);
+void gm_refresh(GtkToolButton *button, gpointer user);
 
 int meas_insert(struct gm_state *state, int glucose, char *date, char *device);
 static GtkTreeModel *meas_model(struct gm_state *state);
@@ -222,76 +223,6 @@ glucose_listview(GtkTreeModel *model)
 
 	return view;
 }
-
-#define GM_MENU_COL_NAME 0
-#define GM_MENU_NUM_COLS 2
-
-static GtkTreeModel *
-menu_listmodel(void)
-{
-	GtkListStore	*store;
-	GtkTreeIter	iter;
-  
-	store = gtk_list_store_new(GM_MENU_NUM_COLS, G_TYPE_STRING, G_TYPE_UINT);
-
-	gtk_list_store_append(store, &iter);
-	gtk_list_store_set(store, &iter, GM_MENU_COL_NAME, "bla", -1);
-
-	return GTK_TREE_MODEL(store);
-}
-
-
-static gboolean
-menu_listview_select(GtkTreeSelection *selection, GtkTreeModel *model,
-	GtkTreePath *path, gboolean path_currently_selected, gpointer userdata)
-{
-	GtkTreeIter	 iter;
-	gchar		*name;
-
-	if(!gtk_tree_model_get_iter(model, &iter, path)) {
-		return TRUE;
-	}
-
-	gtk_tree_model_get(model, &iter, GM_MENU_COL_NAME, &name, -1);
-
-	if(!path_currently_selected)
-		g_print("%s is going to be selected.\n", name);
-	else
-		g_print("%s is going to be unselected.\n", name);
-
-	g_free(name);
-
-	return TRUE;
-}
-
-static GtkWidget *
-menu_listview(void)
-{
-	GtkWidget *view;
-	GtkCellRenderer *renderer;
-	GtkTreeModel	*model;
-	GtkTreeSelection  *selection;
-
-	view = gtk_tree_view_new();
-
-	selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
-	gtk_tree_selection_set_select_function(selection, menu_listview_select, NULL, NULL);
-
-	renderer = gtk_cell_renderer_text_new();
-
-	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(view), -1,
-		"Item", renderer, "text", GM_MENU_COL_NAME, NULL);
-
-	model = menu_listmodel();
-	gtk_tree_view_set_model(GTK_TREE_VIEW(view), model);
-
-	g_object_unref(model);
-
-	gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(view), FALSE);
-
-	return view;
-}
-
 
 gboolean
 gm_dummy_cb(gpointer user)
@@ -585,10 +516,21 @@ gm_destroy_cb(GtkWidget *widget, gpointer data)
 	gtk_main_quit();
 }
 
+void
+gm_refresh(GtkToolButton *button, gpointer user)  
+{
+	struct gm_state *state = user;
+
+	meas_model_fill(state, GTK_LIST_STORE(state->measurements));
+
+	printf("refresh\n");
+}
+
 int
 main(int argc, char *argv[])
 {
-	GtkWidget	*window, *view, *menu, *hpaned;
+	GtkWidget	*window, *view, *toolbar, *vpaned;
+	GtkToolItem	*refresh;
 	GMainLoop	*loop;
 	struct gm_state  state;
 	int r;
@@ -606,7 +548,7 @@ main(int argc, char *argv[])
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	g_signal_connect(window, "delete-event", G_CALLBACK(gm_delete_cb), NULL);
 	g_signal_connect(window, "destroy", G_CALLBACK(gm_destroy_cb), NULL);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+	gtk_container_set_border_width(GTK_CONTAINER(window), 0);
 	gtk_widget_set_size_request(GTK_WIDGET(window), 450, 400);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 
@@ -614,14 +556,18 @@ main(int argc, char *argv[])
 
 	view = glucose_listview(state.measurements);
 
-	menu = menu_listview();
+	toolbar = gtk_toolbar_new();
 
-	hpaned = gtk_hpaned_new();
+	refresh = gtk_tool_button_new_from_stock(GTK_STOCK_REFRESH);
+	g_signal_connect(refresh, "clicked", G_CALLBACK(gm_refresh), &state); 
+	gtk_toolbar_insert(GTK_TOOLBAR(toolbar), refresh, -1);
 
-	gtk_paned_add1(GTK_PANED(hpaned), menu);
-	gtk_paned_add2(GTK_PANED(hpaned), view);
+	vpaned = gtk_vpaned_new();
 
-	gtk_container_add(GTK_CONTAINER(window), hpaned);
+	gtk_paned_add1(GTK_PANED(vpaned), toolbar);
+	gtk_paned_add2(GTK_PANED(vpaned), view);
+
+	gtk_container_add(GTK_CONTAINER(window), vpaned);
 
 	gtk_widget_show_all(window);
 
