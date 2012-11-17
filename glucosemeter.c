@@ -82,27 +82,11 @@ static gboolean gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointe
 struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
 int gm_abbott_device_init(char *dev);
 int gm_process_config(struct gm_state *state);
-void meas_change_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
 
 #define GM_MEAS_COL_GLUCOSE 0
 #define GM_MEAS_COL_DATE 1
 #define GM_MEAS_COL_DEVICE 2
 #define GM_MEAS_NUM_COLS 3
-
-void
-meas_change_cb(GtkTreeModel *model, GtkTreePath  *path,
-	GtkTreeIter  *iter, gpointer user_data)
-{
-	gchar *date;
-
-	printf("changed!\n");
-
-	gtk_tree_model_get(model, iter, GM_MEAS_COL_DATE, &date, -1);
-
-	printf("date: %s\n", date);
-
-	g_free(date);
-}
 
 static GtkTreeModel *
 meas_model(struct gm_state *state)
