@@ -83,29 +83,64 @@ struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
 int gm_abbott_device_init(char *dev);
 int gm_process_config(struct gm_state *state);
 
+int meas_insert(struct gm_state *state, int glucose, char *date, char *device);
+static GtkTreeModel *meas_model(struct gm_state *state);
+int meas_model_fill(struct gm_state *state, GtkListStore *store);
+
 #define GM_MEAS_COL_GLUCOSE 0
 #define GM_MEAS_COL_DATE 1
 #define GM_MEAS_COL_DEVICE 2
 #define GM_MEAS_NUM_COLS 3
 
-static GtkTreeModel *
-meas_model(struct gm_state *state)
+int
+meas_insert(struct gm_state *state, int glucose, char *date, char *device)
 {
-	GtkListStore	*store;
+	int		 r;
+	sqlite3_stmt    *stmt;
+	const char      *sql_tail;
+
+	r = sqlite3_prepare_v2(state->sqlite3_handle, "INSERT OR IGNORE INTO measurements VALUES " \
+		" (?, ?, ?);", -1, &stmt, &sql_tail);
+	if (r != SQLITE_OK) {
+		return -1;
+	}
+
+	r = sqlite3_bind_int(stmt, 1, glucose);
+	if (r != SQLITE_OK)
+		goto fail;
+
+	r = sqlite3_bind_text(stmt, 2, date, -1, NULL);
+	if (r != SQLITE_OK)
+		goto fail;
+
+	r = sqlite3_bind_text(stmt, 3, device, -1, NULL);
+	if (r != SQLITE_OK)
+		goto fail;
+
+	r = sqlite3_step(stmt);
+	if (r != SQLITE_DONE)
+		goto fail;
+
+	sqlite3_finalize(stmt);
+
+	meas_model_fill(state, GTK_LIST_STORE(state->measurements));
+
+	return 0;
+fail:
+	sqlite3_finalize(stmt);
+
+	return -1;
+}
+
+int
+meas_model_fill(struct gm_state *state, GtkListStore *store)
+{
 	GtkTreeIter	 iter;
 	int		 r;
-	char		*errmsg;
 	sqlite3_stmt	*stmt;
 	const char	*sql_tail;
 
-	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
-		" (glucose INTEGER, date DATETIME, device VARCHAR(255), " \
-		" UNIQUE (glucose, date, device))", NULL, NULL, &errmsg);
-	if (r != SQLITE_OK) {
-		return NULL;
-	}
-
-	store = gtk_list_store_new(GM_MEAS_NUM_COLS, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+	gtk_list_store_clear(store);
 
 	/* Fill the measurement store with entries from the database */
 	r = sqlite3_prepare_v2(state->sqlite3_handle,
@@ -133,8 +168,32 @@ meas_model(struct gm_state *state)
 	if (r != SQLITE_DONE)
 		goto fail;
 
-	return GTK_TREE_MODEL(store);
+	return 0;
+fail:
+	return -1;
+}
 
+static GtkTreeModel *
+meas_model(struct gm_state *state)
+{
+	GtkListStore	*store;
+	int		 r;
+	char		*errmsg;
+
+	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
+		" (glucose INTEGER, date DATETIME, device VARCHAR(255), " \
+		" UNIQUE (glucose, date, device))", NULL, NULL, &errmsg);
+	if (r != SQLITE_OK) {
+		return NULL;
+	}
+
+	store = gtk_list_store_new(GM_MEAS_NUM_COLS, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+
+	r = meas_model_fill(state, store);
+	if (r == -1)
+		goto fail;
+
+	return GTK_TREE_MODEL(store);
 fail:
 	g_object_unref(store);
 
@@ -233,12 +292,15 @@ menu_listview(void)
 	return view;
 }
 
+
 gboolean
 gm_dummy_cb(gpointer user)
 {
 	struct gm_state *state = user;
 
-	return FALSE;
+	meas_insert(state, 100, "2012-11-17 13:13", "dummy");
+
+	return TRUE;
 }
 
 struct gm_dummy_conn *
@@ -487,10 +549,10 @@ progress_dialog_new(void)
 int
 gm_process_config(struct gm_state *state)
 {
-	struct gm_abbott_conn	*abbott_conn;
-	struct gm_dummy_conn	*dummy_conn;
 
 #if 0
+	struct gm_abbott_conn	*abbott_conn;
+
 	abbott_conn = gm_abbott_conn_init("/dev/ttyU0");
 	if (abbott_conn == NULL) {
 		return -1;
@@ -498,6 +560,8 @@ gm_process_config(struct gm_state *state)
 
 	state->conns[state->nconns++] = (struct gm_generic_conn *)abbott_conn;
 #else
+	struct gm_dummy_conn	*dummy_conn;
+
 	dummy_conn = gm_dummy_conn_init(state);
 	if (dummy_conn == NULL) {
 		return -1;
@@ -526,7 +590,6 @@ main(int argc, char *argv[])
 {
 	GtkWidget	*window, *view, *menu, *hpaned;
 	GMainLoop	*loop;
-	GtkTreeModel	*glucose_model;
 	struct gm_state  state;
 	int r;
 
@@ -547,9 +610,9 @@ main(int argc, char *argv[])
 	gtk_widget_set_size_request(GTK_WIDGET(window), 450, 400);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 
-	glucose_model = meas_model(&state);
+	state.measurements = meas_model(&state);
 
-	view = glucose_listview(glucose_model);
+	view = glucose_listview(state.measurements);
 
 	menu = menu_listview();
 
