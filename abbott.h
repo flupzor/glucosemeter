@@ -36,17 +36,6 @@ enum abbott_softwarerevision {
 	ABBOTT_SOFT_1_43_P,
 };
 
-enum abbott_state {
-	PARSE_NONE,
-	PARSE_DEVICE_TYPE,
-	PARSE_SOFTWARE_REVISION,
-	PARSE_CURRENTTIME,
-	PARSE_NENTRIES,
-	PARSE_FIRSTENTRY,
-	PARSE_ENTRY,
-	PARSE_END,
-};
-
 struct abbott_entry {
 	int		bloodsugar;
 	struct tm	ptm;
