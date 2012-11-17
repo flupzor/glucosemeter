@@ -83,7 +83,6 @@ struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
 int gm_abbott_device_init(char *dev);
 int gm_process_config(struct gm_state *state);
 void meas_change_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
-int meas_orm(void *user, int ncolumns, char **columns, char **column_names);
 
 #define GM_MEAS_COL_GLUCOSE 0
 #define GM_MEAS_COL_DATE 1
@@ -105,35 +104,15 @@ meas_change_cb(GtkTreeModel *model, GtkTreePath  *path,
 	g_free(date);
 }
 
-int
-meas_orm(void *user, int ncolumns, char **columns, char **column_names)
-{
-	GtkTreeIter	 iter;
-	GtkListStore	*store = user;
-	int i;
-
-	gtk_list_store_append(store, &iter);
-
-	for (i = 0; i < ncolumns; i++) {
-		if (strcmp(column_names[i], "glucose") == 0) 
-			/* XXX: replace atoi with strtonum or use a better
-			 * method to receive the sqlite columns */
-			gtk_list_store_set(store, &iter, GM_MEAS_COL_GLUCOSE, atoi(columns[i]), -1);
-		if (strcmp(column_names[i], "date") == 0)
-			gtk_list_store_set(store, &iter, GM_MEAS_COL_DATE, columns[i], -1);
-		if (strcmp(column_names[i], "device") == 0)
-			gtk_list_store_set(store, &iter, GM_MEAS_COL_DEVICE, columns[i], -1);
-	}
-
-	return 0;
-}
-
 static GtkTreeModel *
 meas_model(struct gm_state *state)
 {
 	GtkListStore	*store;
+	GtkTreeIter	 iter;
 	int		 r;
 	char		*errmsg;
+	sqlite3_stmt	*stmt;
+	const char	*sql_tail;
 
 	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
 		" (id INTEGER PRIMARY KEY, glucose INTEGER, date DATETIME, device VARCHAR(255), " \
@@ -145,14 +124,37 @@ meas_model(struct gm_state *state)
 	store = gtk_list_store_new(GM_MEAS_NUM_COLS, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
 
 	/* Fill the measurement store with entries from the database */
-	r = sqlite3_exec(state->sqlite3_handle, "SELECT * from measurements",
-		meas_orm, store, &errmsg);
-	if (r != SQLITE_OK) {
-		g_object_unref(store);
-		return NULL;
+	r = sqlite3_prepare_v2(state->sqlite3_handle,
+			"SELECT glucose, date, device from measurements", -1, &stmt, &sql_tail);
+	if (r != SQLITE_OK)
+		goto fail;
+
+	while((r = sqlite3_step(stmt)) == SQLITE_ROW) {
+		int glucose;
+		const unsigned char *date, *device;
+
+		gtk_list_store_append(store, &iter);
+
+		glucose = sqlite3_column_int(stmt, 0);
+		gtk_list_store_set(store, &iter, GM_MEAS_COL_GLUCOSE, glucose, -1);
+
+		date = sqlite3_column_text(stmt, 1);
+		gtk_list_store_set(store, &iter, GM_MEAS_COL_DATE, date, -1);
+
+		device = sqlite3_column_text(stmt, 2);
+		gtk_list_store_set(store, &iter, GM_MEAS_COL_DEVICE, device, -1);
+
 	}
 
+	if (r != SQLITE_DONE)
+		goto fail;
+
 	return GTK_TREE_MODEL(store);
+
+fail:
+	g_object_unref(store);
+
+	return NULL;
 }
 
 static GtkWidget *
