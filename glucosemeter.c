@@ -548,9 +548,6 @@ main(int argc, char *argv[])
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	g_signal_connect(window, "delete-event", G_CALLBACK(gm_delete_cb), NULL);
 	g_signal_connect(window, "destroy", G_CALLBACK(gm_destroy_cb), NULL);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 0);
-	gtk_widget_set_size_request(GTK_WIDGET(window), 450, 400);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 
 	state.measurements = meas_model(&state);
 
