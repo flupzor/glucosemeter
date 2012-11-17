@@ -41,7 +41,7 @@ struct gm_state {
 	size_t			nconns;
 
 	sqlite3			*sqlite3_handle;
-	GtkTreeModel		 measurements;
+	GtkTreeModel		*measurements;
 };
 
 static gboolean gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data);
@@ -147,7 +147,8 @@ meas_model(struct gm_state *state)
 	const char	*sql_tail;
 
 	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
-		" (glucose integer, date string, device string)", NULL, NULL, &errmsg);
+		" (id INTEGER PRIMARY KEY, glucose INTEGER, date DATETIME, device VARCHAR(255), " \
+		" UNIQUE (glucose, date, device))", NULL, NULL, &errmsg);
 	if (r != SQLITE_OK) {
 		return NULL;
 	}
