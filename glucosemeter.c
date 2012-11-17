@@ -51,7 +51,6 @@ struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
 int gm_abbott_device_init(char *dev);
 int gm_process_config(struct gm_state *state);
 void meas_change_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
-void meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path, GtkTreeIter  *iter, gpointer user_data);
 int meas_orm(void *user, int ncolumns, char **columns, char **column_names);
 
 #define GM_MEAS_COL_GLUCOSE 0
@@ -71,45 +70,6 @@ meas_change_cb(GtkTreeModel *model, GtkTreePath  *path,
 
 	printf("date: %s\n", date);
 
-	g_free(date);
-}
-
-void
-meas_insert_cb(GtkTreeModel *model, GtkTreePath  *path,
-	GtkTreeIter  *iter, gpointer user_data)
-{
-	gchar		*date = NULL, *device = NULL;
-	gint		 glucose;
-	sqlite3_stmt	*stmt;
-	int r;
-
-	stmt = g_object_get_data(G_OBJECT(model), "insert_stmt");
-	if (stmt == NULL)
-		return;
-
-	gtk_tree_model_get(model, iter, GM_MEAS_COL_GLUCOSE, &glucose, -1);
-
-	r = sqlite3_bind_int(stmt, 1, glucose);
-	if (r != SQLITE_OK)
-		goto fail;
-
-	gtk_tree_model_get(model, iter, GM_MEAS_COL_DATE, &date, -1);
-
-	r = sqlite3_bind_text(stmt, 2, date, -1, NULL);
-	if (r != SQLITE_OK)
-		goto fail;
-
-	gtk_tree_model_get(model, iter, GM_MEAS_COL_DEVICE, &device, -1);
-
-	r = sqlite3_bind_text(stmt, 2, device, -1, NULL);
-	if (r != SQLITE_OK)
-		goto fail;
-
-	r = sqlite3_step(stmt);
-	if (r != SQLITE_DONE)
-		goto fail;
-
-fail:
 	g_free(date);
 }
 
@@ -140,11 +100,8 @@ static GtkTreeModel *
 meas_model(struct gm_state *state)
 {
 	GtkListStore	*store;
-	GtkTreeIter	 iter;
 	int		 r;
 	char		*errmsg;
-	sqlite3_stmt	*insert_stmt, *change_stmt, *delete_stmt;
-	const char	*sql_tail;
 
 	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
 		" (id INTEGER PRIMARY KEY, glucose INTEGER, date DATETIME, device VARCHAR(255), " \
@@ -161,20 +118,6 @@ meas_model(struct gm_state *state)
 	if (r != SQLITE_OK) {
 		return NULL;
 	}
-
-	r = sqlite3_prepare_v2(state->sqlite3_handle, "INSERT INTO measurements VALUES " \
-		" (?, ?, ?);", -1, &insert_stmt, &sql_tail);
-	if (r != SQLITE_OK) {
-		return NULL;
-	}
-
-	g_object_set_data_full(G_OBJECT(store), "insert_stmt", insert_stmt, g_object_unref);
-
-	g_object_set_data_full(G_OBJECT(store), "change_stmt", change_stmt, g_object_unref);
-	g_object_set_data_full(G_OBJECT(store), "delete_stmt", delete_stmt, g_object_unref);
-
-	g_signal_connect(store, "row-changed", G_CALLBACK(meas_insert_cb), state);
-	g_signal_connect(store, "row-inserted", G_CALLBACK(meas_change_cb), state);
 
 	return GTK_TREE_MODEL(store);
 }
