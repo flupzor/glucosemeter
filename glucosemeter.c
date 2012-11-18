@@ -27,6 +27,12 @@
 
 #include "abbott.h"
 
+#ifdef DEBUG
+#define DPRINTF(x) do { printf x; } while(0)
+#else
+#define DPRINTF(x)
+#endif
+
 struct gm_driver_conn {
 	GIOChannel	*channel;
 	size_t		 length;
@@ -70,8 +76,11 @@ struct gm_abbott_conn {
 		ABBOTT_RESULTLINE,
 		ABBOTT_END,
 		ABBOTT_EMPTY,
+		ABBOTT_FAIL,
 	} protocol_state;
 	uint16_t checksum;
+	int nresults;
+	int results_processed;
 };
 
 gboolean gm_dummy_cb(gpointer user);
@@ -87,6 +96,15 @@ void gm_refresh(GtkToolButton *button, gpointer user);
 int meas_insert(struct gm_state *state, int glucose, char *date, char *device);
 static GtkTreeModel *meas_model(struct gm_state *state);
 int meas_model_fill(struct gm_state *state, GtkListStore *store);
+
+void gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line);
+void gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line);
+void gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line);
+void gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line);
+void gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line);
+void gm_abbott_parseend(struct gm_abbott_conn *conn, char *line);
+void gm_abbott_parseempty(struct gm_abbott_conn *conn, char *line);
+void gm_abbott_parseline(struct gm_abbott_conn *conn, char *line);
 
 #define GM_MEAS_COL_GLUCOSE 0
 #define GM_MEAS_COL_DATE 1
@@ -340,78 +358,173 @@ fail:
 	
 }
 
+void
+gm_abbott_parseline(struct gm_abbott_conn *conn, char *line)
+{
+	int old_state = conn->protocol_state;
+
+	switch(conn->protocol_state) {
+		case ABBOTT_DEVICE_TYPE:
+			gm_abbott_parsedev(conn, line);
+			break;
+		case ABBOTT_SOFTWARE_REVISION:
+			gm_abbott_parsesoft(conn, line);
+			break;
+		case ABBOTT_CURRENTDATETIME:
+			gm_abbott_parsedate(conn, line);
+			break;
+		case ABBOTT_NUMBEROFRESULTS:
+			gm_abbott_parsenresults(conn, line);
+			break;
+		case ABBOTT_RESULTLINE:
+			gm_abbott_parseresult(conn, line);
+			break;
+		case ABBOTT_END:
+			gm_abbott_parseend(conn, line);
+			break;
+		case ABBOTT_EMPTY:
+			gm_abbott_parseempty(conn, line);
+			break;
+		default:
+			/* XXX: this shouldn't happen */
+			break;
+	}
+
+	DPRINTF(("%s: state: %d -> %d\n", __func__, old_state, conn->protocol_state));
+}
+
+void
+gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line)
+{
+	enum abbott_devicetype device_type;
+
+	device_type = abbott_devicetype(line);
+	DPRINTF(("%s: device_type: %d\n", __func__, device_type));
+
+	/* Don't continue parsing if the device type isn't known. */
+	if (device_type == ABBOTT_DEV_UNKNOWN)
+		conn->protocol_state = ABBOTT_FAIL;
+	else
+		conn->protocol_state++;
+}
+
+void
+gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line)
+{
+	enum abbott_softwarerevision softrev;
+
+	softrev = abbott_softrev(line);
+	DPRINTF(("%s: softrev: %d\n", __func__, softrev));
+
+	/* Don't continue parsing if the software revision isn't known. */
+	if (softrev == ABBOTT_SOFT_UNKNOWN)
+		conn->protocol_state = ABBOTT_FAIL;
+	else
+		conn->protocol_state++;
+}
+
+void
+gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line)
+{
+	struct tm device_tm;	
+	int r;
+
+	r = abbott_parsetime(line, &device_tm);
+	if (r == -1) {
+		conn->protocol_state = ABBOTT_FAIL;
+		return;
+	}
+
+	DPRINTF(("%s: currentdatetime", __func__));
+	conn->protocol_state++;
+
+	return;
+}
+
+void
+gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line)
+{
+	int nresults;
+
+	nresults = abbott_nentries(line);
+	if (nresults == -1)
+		conn->protocol_state = ABBOTT_FAIL;
+	else
+		conn->protocol_state++;
+
+	conn->nresults = nresults;
+
+	DPRINTF(("%s: numberofresults\n", __func__));
+
+	return;
+}
+
+void
+gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
+{
+	int r;
+	struct abbott_entry entry;
+
+	r = abbott_parse_entry(line, &entry);
+
+	conn->results_processed++;
+	if (conn->results_processed >= conn->nresults)
+		conn->protocol_state = ABBOTT_END;
+
+	DPRINTF(("%s: result\n", __func__));
+}
+
+void
+gm_abbott_parseend(struct gm_abbott_conn *conn, char *line)
+{
+	DPRINTF(("%s: end calc checksum %x\n", __func__, conn->checksum));
+}
+
+void
+gm_abbott_parseempty(struct gm_abbott_conn *conn, char *line)
+{
+}
+
 static gboolean
 gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 {
 	GIOStatus	 status;
-	gchar		*line;
-	gsize		 line_length, terminator_pos;
+	gsize		 terminator_pos;
 	GError		*error = NULL;
-	guint		 r;
 	struct gm_abbott_conn *abbott_state = data;
+	GString		*line;
 
-	printf("in\n");
+	if (abbott_state->protocol_state == ABBOTT_FAIL) {
+		/* XXX: stop processing */
+	}
 
-	status = g_io_channel_read_line(gio, &line, &line_length, &terminator_pos, &error);
+	line = g_string_sized_new(100);
+
+	status = g_io_channel_read_line_string(gio, line, &terminator_pos, &error);
 
 	if (status == G_IO_STATUS_ERROR) {
-		printf("error occured\n");
-	}
-	if (status == G_IO_STATUS_AGAIN) {
-		printf("resource temp unavail.\n");
-	}
+		DPRINTF(("%s: error occured\n", __func__));
+		/* XXX: stop processing */
+	} else if (status == G_IO_STATUS_AGAIN) {
+		DPRINTF(("%s: resource temp unavail.\n", __func__));
+	} else if (status == G_IO_STATUS_NORMAL) {
+		/* Calculate the checksum before the newline terminators are cut off */
+		if (abbott_state->protocol_state != ABBOTT_END)
+			abbott_state->checksum += abbott_calc_checksum(line->str);
 
-	/* skip emtpy lines */
-	if (terminator_pos == 0)
-		goto skip;
+		/* Cut off the newline terminators */
+		line = g_string_truncate(line, terminator_pos);
 
-	if (status == G_IO_STATUS_NORMAL) {
+		if (line->len > 0)
+			gm_abbott_parseline(abbott_state, line->str);
 
-		switch(abbott_state->protocol_state) {
-			case ABBOTT_DEVICE_TYPE: {
-				enum abbott_devicetype device_type;
-				printf("device_type");
-
-				device_type = abbott_devicetype(line);
-				printf("device_type: %d\n", device_type);
-
-				abbott_state->protocol_state++;
-			}
-				break;
-			case ABBOTT_SOFTWARE_REVISION:
-				printf("software_revision");
-				abbott_state->protocol_state++;
-				break;
-			case ABBOTT_CURRENTDATETIME:
-				printf("currentdatetime");
-				abbott_state->protocol_state++;
-				break;
-			case ABBOTT_NUMBEROFRESULTS:
-				printf("numberofresults");
-				abbott_state->protocol_state++;
-				break;
-			case ABBOTT_RESULTLINE:
-				break;
-			case ABBOTT_END:
-				break;
-			case ABBOTT_EMPTY:
-				break;
-
-			default:
-				/* XXX: this shouldn't happen */
-				break;
-		}
-
-		printf("normal; line: \"%s\"\n", line);
+		DPRINTF(("%s: status: normal; line: \"%s\"\n", __func__, line->str));
 	}
 
-skip:
-	if (status != G_IO_STATUS_EOF) {
-		r = g_io_add_watch(gio, G_IO_IN | G_IO_HUP, gm_abbott_in, abbott_state);
-		if (!r)
-			g_error("Cannnot watch GIOChannel");
-	}
+	g_string_free(line, TRUE);
 
+	if (status == G_IO_STATUS_EOF)
+		return FALSE;
 
 	return TRUE;
 }
@@ -429,13 +542,11 @@ gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data)
 		return FALSE;
 	}
 
-	printf("out\n");
-
 	status = g_io_channel_write_chars(gio, buf, -1, &wrote_len, &error);
 
 	g_io_channel_flush(gio, NULL);
 
-	printf("bytes written: %zu status: %d\n", wrote_len, status);
+	DPRINTF(("%s: bytes written: %zu status: %d\n", __func__, wrote_len, status));
 
 	abbott_state->protocol_state++;
 
@@ -481,7 +592,7 @@ int
 gm_process_config(struct gm_state *state)
 {
 
-#if 0
+#if 1
 	struct gm_abbott_conn	*abbott_conn;
 
 	abbott_conn = gm_abbott_conn_init("/dev/ttyU0");

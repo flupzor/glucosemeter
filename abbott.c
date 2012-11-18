@@ -312,3 +312,15 @@ fail:
 	printf("fail!\n");
 	return (-1);
 }
+
+uint16_t
+abbott_calc_checksum(char *line)
+{
+	int i;
+	uint16_t checksum = 0;
+
+	for (i = 0; line[i] != '\0'; i++)
+		checksum += line[i];
+
+	return checksum;
+}
