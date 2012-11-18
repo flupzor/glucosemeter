@@ -74,11 +74,6 @@ struct gm_abbott_conn {
 
 gboolean gm_dummy_cb(gpointer user);
 struct gm_dummy_conn *gm_dummy_conn_init(struct gm_state *state);
-static gboolean gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data);
-static gboolean gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data);
-static gboolean gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointer data);
-struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
-int gm_abbott_device_init(char *dev);
 int gm_process_config(struct gm_state *state);
 void gm_refresh(GtkToolButton *button, gpointer user);
 
@@ -86,14 +81,19 @@ int meas_insert(struct gm_state *state, int glucose, char *date, char *device);
 static GtkTreeModel *meas_model(struct gm_state *state);
 int meas_model_fill(struct gm_state *state, GtkListStore *store);
 
-void gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line);
-void gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line);
-void gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line);
-void gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line);
-void gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line);
-void gm_abbott_parseend(struct gm_abbott_conn *conn, char *line);
-void gm_abbott_parseempty(struct gm_abbott_conn *conn, char *line);
-void gm_abbott_parseline(struct gm_abbott_conn *conn, char *line);
+static gboolean gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data);
+static gboolean gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data);
+static gboolean gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointer data);
+static struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
+static int gm_abbott_device_init(char *dev);
+static void gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line);
+static void gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line);
+static void gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line);
+static void gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line);
+static void gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line);
+static void gm_abbott_parseend(struct gm_abbott_conn *conn, char *line);
+static void gm_abbott_parseempty(struct gm_abbott_conn *conn, char *line);
+static void gm_abbott_parseline(struct gm_abbott_conn *conn, char *line);
 
 #define GM_MEAS_COL_GLUCOSE 0
 #define GM_MEAS_COL_DATE 1
@@ -256,7 +256,7 @@ gm_dummy_conn_init(struct gm_state *state)
 	return conn;
 }
 
-int
+static int
 gm_abbott_device_init(char *dev)
 {
 	int fd;
@@ -290,7 +290,7 @@ gm_abbott_device_init(char *dev)
 	return fd;
 }
 
-struct gm_abbott_conn *
+static struct gm_abbott_conn *
 gm_abbott_conn_init(char *dev)
 {
 	int		 fd;
@@ -347,7 +347,7 @@ fail:
 	
 }
 
-void
+static void
 gm_abbott_parseline(struct gm_abbott_conn *conn, char *line)
 {
 	int old_state = conn->protocol_state;
@@ -382,7 +382,7 @@ gm_abbott_parseline(struct gm_abbott_conn *conn, char *line)
 	DPRINTF(("%s: state: %d -> %d\n", __func__, old_state, conn->protocol_state));
 }
 
-void
+static void
 gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line)
 {
 	enum abbott_devicetype device_type;
@@ -397,7 +397,7 @@ gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line)
 		conn->protocol_state++;
 }
 
-void
+static void
 gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line)
 {
 	enum abbott_softwarerevision softrev;
@@ -412,7 +412,7 @@ gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line)
 		conn->protocol_state++;
 }
 
-void
+static void
 gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line)
 {
 	struct tm device_tm;	
@@ -430,7 +430,7 @@ gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line)
 	return;
 }
 
-void
+static void
 gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line)
 {
 	int nresults;
@@ -448,7 +448,7 @@ gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line)
 	return;
 }
 
-void
+static void
 gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
 {
 	int r;
@@ -470,13 +470,13 @@ gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
 	DPRINTF(("%s: result\n", __func__));
 }
 
-void
+static void
 gm_abbott_parseend(struct gm_abbott_conn *conn, char *line)
 {
 	DPRINTF(("%s: end calc checksum %x\n", __func__, conn->checksum));
 }
 
-void
+static void
 gm_abbott_parseempty(struct gm_abbott_conn *conn, char *line)
 {
 }
