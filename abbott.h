@@ -37,7 +37,7 @@ enum abbott_softwarerevision {
 };
 
 struct abbott_entry {
-	int		bloodsugar;
+	int		bloodglucose;
 	struct tm	ptm;
 	int		plasmatype;
 };
