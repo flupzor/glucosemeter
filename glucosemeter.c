@@ -56,17 +56,6 @@ struct gm_dummy_conn {
 
 struct gm_abbott_conn {
 	struct gm_driver_conn	conn;
-	/*
-	 * Send MEM
-	 * Device type
-	 * Software revision
-	 * CurrentDateTime
-	 * Number of results
-	 * Resultline
-	 * END
-	 * EMPTY
-	 *
-	 */
 	enum abbott_protocol_state {
 		ABBOTT_SEND_MEM,
 		ABBOTT_DEVICE_TYPE,
