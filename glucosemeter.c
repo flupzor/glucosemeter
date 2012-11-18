@@ -467,6 +467,13 @@ gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
 
 	r = abbott_parse_entry(line, &entry);
 
+	DPRINTF(("%s: glucose: %d\n", __func__, entry.bloodglucose));
+	DPRINTF(("%s: month: %d\n", __func__, entry.ptm.tm_mon));
+	DPRINTF(("%s: day: %d\n", __func__, entry.ptm.tm_mday));
+	DPRINTF(("%s: year: %d\n", __func__, entry.ptm.tm_year));
+	DPRINTF(("%s: hour: %d\n", __func__, entry.ptm.tm_hour));
+	DPRINTF(("%s: min: %d\n", __func__, entry.ptm.tm_min));
+
 	conn->results_processed++;
 	if (conn->results_processed >= conn->nresults)
 		conn->protocol_state = ABBOTT_END;

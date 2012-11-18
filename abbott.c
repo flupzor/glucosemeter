@@ -150,7 +150,7 @@ abbott_parse_entry(char *p, struct abbott_entry *entry)
 		goto fail;
 
 	errstr = NULL; /* XXX: only necessary one time */
-	glucose = strtonum(p, 0, 400, &errstr); /* XXX: change 400 to sth decent */
+	entry->bloodglucose = strtonum(p, 0, 400, &errstr); /* XXX: change 400 to sth decent */
 	if (errstr)
 		goto fail;
 
@@ -188,9 +188,10 @@ abbott_parse_entry(char *p, struct abbott_entry *entry)
 		goto fail;
 
 	errstr = NULL;
-	yearint = strtonum(p, 0, 9999, &errstr); /* XXX: 3000 should be correspond to what can be stored in tm_year (minus 1900) */
+	yearint = strtonum(p, 0, 9999, &errstr);
 	if (errstr)
 		goto fail;
+	entry->ptm.tm_year = yearint - 1900;
 
 	p = strsep(&p2, ":");
 	if (p2 == NULL)
@@ -209,14 +210,7 @@ abbott_parse_entry(char *p, struct abbott_entry *entry)
 	entry->ptm.tm_min = strtonum(p, 0, 59, &errstr);
 	if (errstr)
 		goto fail;
-#if 0
-	printf("glucose: %d\n", glucose);
-	printf("month: %d\n", entry.ptm.tm_mon);
-	printf("day: %d\n", entry.ptm.tm_mday);
-	printf("year: %d\n", yearint);
-	printf("hour: %d\n", entry.ptm.tm_hour);
-	printf("min: %d\n", entry.ptm.tm_min);
-#endif
+
 
 	return (0);
 fail:
