@@ -64,7 +64,8 @@ struct gm_abbott_entry {
 
 
 struct gm_abbott_conn {
-	struct gm_driver_conn	conn;
+	struct gm_driver_conn	 conn;
+	struct gm_state		*gm_state;
 	enum abbott_protocol_state {
 		ABBOTT_SEND_MEM,
 		ABBOTT_DEVICE_TYPE,
@@ -94,7 +95,7 @@ int meas_model_fill(struct gm_state *state, GtkListStore *store);
 static gboolean gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data);
 static gboolean gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data);
 static gboolean gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointer data);
-static struct gm_abbott_conn * gm_abbott_conn_init(char *dev);
+static struct gm_abbott_conn * gm_abbott_conn_init(struct gm_state *state, char *dev);
 static int gm_abbott_device_init(char *dev);
 static void gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line);
 static void gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line);
@@ -301,7 +302,7 @@ gm_abbott_device_init(char *dev)
 }
 
 static struct gm_abbott_conn *
-gm_abbott_conn_init(char *dev)
+gm_abbott_conn_init(struct gm_state *state, char *dev)
 {
 	int		 fd;
 	guint		 r;
@@ -314,6 +315,7 @@ gm_abbott_conn_init(char *dev)
 	}
 
 	SLIST_INIT(&conn->entries);
+	conn->gm_state = state;
 
 	fd = gm_abbott_device_init(dev);
 	if (fd < 0) {
@@ -638,7 +640,7 @@ gm_process_config(struct gm_state *state)
 #if 1
 	struct gm_abbott_conn	*abbott_conn;
 
-	abbott_conn = gm_abbott_conn_init("/dev/ttyU0");
+	abbott_conn = gm_abbott_conn_init(state, "/dev/ttyU0");
 	if (abbott_conn == NULL) {
 		return -1;
 	}
