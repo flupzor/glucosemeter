@@ -21,6 +21,8 @@
 #include <termios.h>
 #include <string.h>
 
+#include <sys/queue.h>
+
 #include <gtk/gtk.h>
 
 #include <sqlite3.h>
@@ -54,6 +56,13 @@ struct gm_dummy_conn {
 	struct gm_driver_conn	conn;
 };
 
+struct gm_abbott_entry {
+	struct abbott_entry	abbott_entry;
+
+	SLIST_ENTRY(gm_abbott_entry) next;
+};
+
+
 struct gm_abbott_conn {
 	struct gm_driver_conn	conn;
 	enum abbott_protocol_state {
@@ -70,6 +79,7 @@ struct gm_abbott_conn {
 	uint16_t checksum;
 	int nresults;
 	int results_processed;
+	SLIST_HEAD(, gm_abbott_entry) entries;
 };
 
 gboolean gm_dummy_cb(gpointer user);
@@ -303,6 +313,8 @@ gm_abbott_conn_init(char *dev)
 		return NULL;
 	}
 
+	SLIST_INIT(&conn->entries);
+
 	fd = gm_abbott_device_init(dev);
 	if (fd < 0) {
 		fprintf(stderr, "Cannnot open device\n");
@@ -424,7 +436,7 @@ gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line)
 		return;
 	}
 
-	DPRINTF(("%s: currentdatetime", __func__));
+	DPRINTF(("%s: currentdatetime\n", __func__));
 	conn->protocol_state++;
 
 	return;
@@ -452,16 +464,28 @@ static void
 gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
 {
 	int r;
-	struct abbott_entry entry;
+	struct gm_abbott_entry *entry;
 
-	r = abbott_parse_entry(line, &entry);
+	entry = calloc(1, sizeof(*entry));
+	if (entry == NULL) {
+		/* XXX: change to a fail state */
+		return;
+	}
 
-	DPRINTF(("%s: glucose: %d\n", __func__, entry.bloodglucose));
-	DPRINTF(("%s: month: %d\n", __func__, entry.ptm.tm_mon));
-	DPRINTF(("%s: day: %d\n", __func__, entry.ptm.tm_mday));
-	DPRINTF(("%s: year: %d\n", __func__, entry.ptm.tm_year));
-	DPRINTF(("%s: hour: %d\n", __func__, entry.ptm.tm_hour));
-	DPRINTF(("%s: min: %d\n", __func__, entry.ptm.tm_min));
+	r = abbott_parse_entry(line, &entry->abbott_entry);
+
+	/* We can't insert the entry into the database at this point because
+	 * the checksum is calculated over all the messages thus we aren't sure
+	 * yet if this entry is correct. Instead put all the entries in a
+	 * linked list and insert them when the checksum can been verified. */
+	SLIST_INSERT_HEAD(&conn->entries, entry, next);
+
+	DPRINTF(("%s: glucose: %d\n", __func__, entry->abbott_entry.bloodglucose));
+	DPRINTF(("%s: month: %d\n", __func__, entry->abbott_entry.ptm.tm_mon));
+	DPRINTF(("%s: day: %d\n", __func__, entry->abbott_entry.ptm.tm_mday));
+	DPRINTF(("%s: year: %d\n", __func__, entry->abbott_entry.ptm.tm_year));
+	DPRINTF(("%s: hour: %d\n", __func__, entry->abbott_entry.ptm.tm_hour));
+	DPRINTF(("%s: min: %d\n", __func__, entry->abbott_entry.ptm.tm_min));
 
 	conn->results_processed++;
 	if (conn->results_processed >= conn->nresults)
@@ -473,7 +497,30 @@ gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
 static void
 gm_abbott_parseend(struct gm_abbott_conn *conn, char *line)
 {
-	DPRINTF(("%s: end calc checksum %x\n", __func__, conn->checksum));
+	uint16_t checksum;
+	int r;
+
+	r = abbott_parse_checksum(line, &checksum);
+	if (r == -1)
+		return;
+
+	if (conn->checksum == checksum) {
+		struct gm_abbott_entry *e;
+
+		/* We are as sure as we can get that the entries are correct.
+		 * Insert them into the database */
+		while (!SLIST_EMPTY(&conn->entries)) {
+			e = SLIST_FIRST(&conn->entries);
+			SLIST_REMOVE_HEAD(&conn->entries, next);
+
+			/* XXX: insert into database */
+			printf("glucose: %d\n", e->abbott_entry.bloodglucose);
+
+			free(e);
+		}
+
+		DPRINTF(("%s: checksum verified!\n", __func__));
+	}
 }
 
 static void
@@ -511,10 +558,10 @@ gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 		/* Cut off the newline terminators */
 		line = g_string_truncate(line, terminator_pos);
 
+		DPRINTF(("%s: line(%zu): \"%s\"\n", __func__, line->len, line->str));
+
 		if (line->len > 0)
 			gm_abbott_parseline(abbott_state, line->str);
-
-		DPRINTF(("%s: status: normal; line: \"%s\"\n", __func__, line->str));
 	}
 
 	g_string_free(line, TRUE);
