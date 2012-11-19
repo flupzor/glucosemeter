@@ -686,7 +686,7 @@ gm_refresh(GtkToolButton *button, gpointer user)
 int
 main(int argc, char *argv[])
 {
-	GtkWidget	*window, *view, *toolbar, *vpaned;
+	GtkWidget	*window, *view, *toolbar, *vpaned, *scrollview;
 	GtkToolItem	*refresh;
 	GMainLoop	*loop;
 	struct gm_state  state;
@@ -710,6 +710,11 @@ main(int argc, char *argv[])
 
 	view = glucose_listview(state.measurements);
 
+	scrollview = gtk_scrolled_window_new(NULL, NULL);
+	gtk_scrolled_window_set_policy(scrollview, GTK_POLICY_AUTOMATIC,
+		GTK_POLICY_AUTOMATIC);
+	gtk_container_add(scrollview, view);
+
 	toolbar = gtk_toolbar_new();
 
 	refresh = gtk_tool_button_new_from_stock(GTK_STOCK_REFRESH);
@@ -719,7 +724,7 @@ main(int argc, char *argv[])
 	vpaned = gtk_vpaned_new();
 
 	gtk_paned_add1(GTK_PANED(vpaned), toolbar);
-	gtk_paned_add2(GTK_PANED(vpaned), view);
+	gtk_paned_add2(GTK_PANED(vpaned), scrollview);
 
 	gtk_container_add(GTK_CONTAINER(window), vpaned);
 
