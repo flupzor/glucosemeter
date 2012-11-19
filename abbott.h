@@ -48,3 +48,4 @@ enum abbott_softwarerevision abbott_softrev(char *rev);
 int abbott_nentries(char *);
 int abbott_parse_entry(char *p, struct abbott_entry *entry);
 uint16_t abbott_calc_checksum(char *line);
+int abbott_parse_checksum(char *line, uint16_t *checksum);

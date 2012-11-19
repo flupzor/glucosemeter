@@ -15,6 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -126,7 +128,7 @@ abbott_parse_entry(char *p, struct abbott_entry *entry)
 	char			*p2;
 	const char		*errstr;
 	struct monthlist	*m;
-	int			 glucose, yearint;
+	int			 yearint;
 
 	/* Keep sorted */
 	struct monthlist mlist[] = {
@@ -317,4 +319,32 @@ abbott_calc_checksum(char *line)
 		checksum += line[i];
 
 	return checksum;
+}
+
+int
+abbott_parse_checksum(char *line, uint16_t *checksum)
+{
+	char *end, *strchecksum, *endptr;
+	unsigned long ul;
+
+	end = line;
+	strchecksum = strsep(&end, " ");
+	if (end == NULL)
+		return -1;
+
+	if (*end == ' ')
+		end++;
+
+	if (strcmp(end, "END") != 0)
+		return -1;
+
+	ul = strtoul(strchecksum, &endptr, 16);
+	if (strchecksum[0] == '\0' || *endptr != '\0')
+		return -1;
+	if (errno == ERANGE && ul == ULONG_MAX)
+		return -1;
+
+	*checksum = ul;
+
+	return 0;
 }
