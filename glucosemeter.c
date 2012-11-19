@@ -515,8 +515,9 @@ gm_abbott_parseend(struct gm_abbott_conn *conn, char *line)
 			e = SLIST_FIRST(&conn->entries);
 			SLIST_REMOVE_HEAD(&conn->entries, next);
 
-			/* XXX: insert into database */
-			printf("glucose: %d\n", e->abbott_entry.bloodglucose);
+			meas_insert(conn->gm_state,
+				e->abbott_entry.bloodglucose,
+				asctime(&e->abbott_entry.ptm), "abbott");
 
 			free(e);
 		}
