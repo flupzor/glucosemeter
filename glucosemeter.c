@@ -15,17 +15,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
-#include <termios.h>
+#include <stdint.h>
 #include <string.h>
+#include <sqlite3.h>
+#include <termios.h>
+#include <unistd.h>
 
 #include <sys/queue.h>
 
 #include <gtk/gtk.h>
 
-#include <sqlite3.h>
 
 #include "abbott.h"
 
