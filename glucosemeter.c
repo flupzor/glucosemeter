@@ -402,7 +402,7 @@ gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line)
 {
 	enum abbott_devicetype device_type;
 
-	device_type = abbott_devicetype(line);
+	device_type = abbott_parsedev(line);
 	DPRINTF(("%s: device_type: %d\n", __func__, device_type));
 
 	/* Don't continue parsing if the device type isn't known. */
@@ -417,7 +417,7 @@ gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line)
 {
 	enum abbott_softwarerevision softrev;
 
-	softrev = abbott_softrev(line);
+	softrev = abbott_parsesoft(line);
 	DPRINTF(("%s: softrev: %d\n", __func__, softrev));
 
 	/* Don't continue parsing if the software revision isn't known. */

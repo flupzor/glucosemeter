@@ -52,7 +52,7 @@ dev_cmp(const void *k, const void *e)
 
 
 enum abbott_devicetype
-abbott_devicetype(char *type)
+abbott_parsedev(char *type)
 {
 	const struct devlist   *p;
 
@@ -79,7 +79,7 @@ rev_cmp(const void *k, const void *e)
 }
 
 enum abbott_softwarerevision
-abbott_softrev(char *rev)
+abbott_parsesoft(char *rev)
 {
 	const struct softlist   *p;
 
