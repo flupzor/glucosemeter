@@ -11,8 +11,8 @@ LDADD+= -lbsd
 .c.o:
 	$(CC) -c $(CFLAGS) $<
 
-glucosemeter: glucosemeter.o abbott.o
-	$(CC) -o glucosemeter glucosemeter.o abbott.o $(LDADD)
+glucosemeter: glucosemeter.o abfr.o
+	$(CC) -o glucosemeter glucosemeter.o abfr.o $(LDADD)
 
 clean:
 	rm *.o glucosemeter

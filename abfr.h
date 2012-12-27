@@ -15,37 +15,37 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define ABBOTT_MAX_ENTRIES	450
+#define ABFR_MAX_ENTRIES	450
 
 // XXX: do these include the NULL terminator?
-#define ABBOTT_ENTRYLEN	31
-#define ABBOTT_TIMELEN	16
+#define ABFR_ENTRYLEN	31
+#define ABFR_TIMELEN	16
 
-enum abbott_devicetype {
-	ABBOTT_DEV_UNKNOWN,
-	ABBOTT_DEV_CDMK311_B0764, // FreeStyle Freedom Lite
-	ABBOTT_DEV_DAMH359_63524, // FreeStyle Mini
-	ABBOTT_DEV_DBMN169_C4824  // FreeStyle Lite
+enum abfr_devicetype {
+	ABFR_DEV_UNKNOWN,
+	ABFR_DEV_CDMK311_B0764, // FreeStyle Freedom Lite
+	ABFR_DEV_DAMH359_63524, // FreeStyle Mini
+	ABFR_DEV_DBMN169_C4824  // FreeStyle Lite
 };
 
-enum abbott_softwarerevision {
-	ABBOTT_SOFT_UNKNOWN,
-	ABBOTT_SOFT_4_0100_P,
-	ABBOTT_SOFT_0_31_P1_B0764,
-	ABBOTT_SOFT_0_31_P, /* XXX: */
-	ABBOTT_SOFT_1_43_P,
+enum abfr_softwarerevision {
+	ABFR_SOFT_UNKNOWN,
+	ABFR_SOFT_4_0100_P,
+	ABFR_SOFT_0_31_P1_B0764,
+	ABFR_SOFT_0_31_P, /* XXX: */
+	ABFR_SOFT_1_43_P,
 };
 
-struct abbott_entry {
+struct abfr_entry {
 	int		bloodglucose;
 	struct tm	ptm;
 	int		plasmatype;
 };
 
-int	 abbott_parsetime(char *p, struct tm *r);
-enum abbott_devicetype abbott_parsedev(char *type);
-enum abbott_softwarerevision abbott_parsesoft(char *rev);
-int abbott_nentries(char *);
-int abbott_parse_entry(char *p, struct abbott_entry *entry);
-uint16_t abbott_calc_checksum(char *line);
-int abbott_parse_checksum(char *line, uint16_t *checksum);
+int	 abfr_parsetime(char *p, struct tm *r);
+enum abfr_devicetype abfr_parsedev(char *type);
+enum abfr_softwarerevision abfr_parsesoft(char *rev);
+int abfr_nentries(char *);
+int abfr_parse_entry(char *p, struct abfr_entry *entry);
+uint16_t abfr_calc_checksum(char *line);
+int abfr_parse_checksum(char *line, uint16_t *checksum);

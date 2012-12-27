@@ -1,5 +1,5 @@
 PROG=	glucosemeter
-SRCS=	glucosemeter.c abbott.c
+SRCS=	glucosemeter.c abfr.c
 
 MAN=	
 

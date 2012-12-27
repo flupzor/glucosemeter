@@ -28,7 +28,7 @@
 #include <gtk/gtk.h>
 
 
-#include "abbott.h"
+#include "abfr.h"
 
 #ifdef DEBUG
 #define DPRINTF(x) do { printf x; } while(0)
@@ -57,31 +57,31 @@ struct gm_dummy_conn {
 	struct gm_driver_conn	conn;
 };
 
-struct gm_abbott_entry {
-	struct abbott_entry	abbott_entry;
+struct gm_abfr_entry {
+	struct abfr_entry	abfr_entry;
 
-	SLIST_ENTRY(gm_abbott_entry) next;
+	SLIST_ENTRY(gm_abfr_entry) next;
 };
 
 
-struct gm_abbott_conn {
+struct gm_abfr_conn {
 	struct gm_driver_conn	 conn;
 	struct gm_state		*gm_state;
-	enum abbott_protocol_state {
-		ABBOTT_SEND_MEM,
-		ABBOTT_DEVICE_TYPE,
-		ABBOTT_SOFTWARE_REVISION,
-		ABBOTT_CURRENTDATETIME,
-		ABBOTT_NUMBEROFRESULTS,
-		ABBOTT_RESULTLINE,
-		ABBOTT_END,
-		ABBOTT_EMPTY,
-		ABBOTT_FAIL,
+	enum abfr_protocol_state {
+		ABFR_SEND_MEM,
+		ABFR_DEVICE_TYPE,
+		ABFR_SOFTWARE_REVISION,
+		ABFR_CURRENTDATETIME,
+		ABFR_NUMBEROFRESULTS,
+		ABFR_RESULTLINE,
+		ABFR_END,
+		ABFR_EMPTY,
+		ABFR_FAIL,
 	} protocol_state;
 	uint16_t checksum;
 	int nresults;
 	int results_processed;
-	SLIST_HEAD(, gm_abbott_entry) entries;
+	SLIST_HEAD(, gm_abfr_entry) entries;
 };
 
 gboolean gm_dummy_cb(gpointer user);
@@ -93,19 +93,19 @@ int meas_insert(struct gm_state *state, int glucose, char *date, char *device);
 static GtkTreeModel *meas_model(struct gm_state *state);
 int meas_model_fill(struct gm_state *state, GtkListStore *store);
 
-static gboolean gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data);
-static gboolean gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data);
-static gboolean gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointer data);
-static struct gm_abbott_conn * gm_abbott_conn_init(struct gm_state *state, char *dev);
-static int gm_abbott_device_init(char *dev);
-static void gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line);
-static void gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line);
-static void gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line);
-static void gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line);
-static void gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line);
-static void gm_abbott_parseend(struct gm_abbott_conn *conn, char *line);
-static void gm_abbott_parseempty(struct gm_abbott_conn *conn, char *line);
-static void gm_abbott_parseline(struct gm_abbott_conn *conn, char *line);
+static gboolean gm_abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data);
+static gboolean gm_abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data);
+static gboolean gm_abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data);
+static struct gm_abfr_conn * gm_abfr_conn_init(struct gm_state *state, char *dev);
+static int gm_abfr_device_init(char *dev);
+static void gm_abfr_parsedev(struct gm_abfr_conn *conn, char *line);
+static void gm_abfr_parsesoft(struct gm_abfr_conn *conn, char *line);
+static void gm_abfr_parsedate(struct gm_abfr_conn *conn, char *line);
+static void gm_abfr_parsenresults(struct gm_abfr_conn *conn, char *line);
+static void gm_abfr_parseresult(struct gm_abfr_conn *conn, char *line);
+static void gm_abfr_parseend(struct gm_abfr_conn *conn, char *line);
+static void gm_abfr_parseempty(struct gm_abfr_conn *conn, char *line);
+static void gm_abfr_parseline(struct gm_abfr_conn *conn, char *line);
 
 #define GM_MEAS_COL_GLUCOSE 0
 #define GM_MEAS_COL_DATE 1
@@ -269,7 +269,7 @@ gm_dummy_conn_init(struct gm_state *state)
 }
 
 static int
-gm_abbott_device_init(char *dev)
+gm_abfr_device_init(char *dev)
 {
 	int fd;
         struct termios ts;
@@ -302,13 +302,13 @@ gm_abbott_device_init(char *dev)
 	return fd;
 }
 
-static struct gm_abbott_conn *
-gm_abbott_conn_init(struct gm_state *state, char *dev)
+static struct gm_abfr_conn *
+gm_abfr_conn_init(struct gm_state *state, char *dev)
 {
 	int		 fd;
 	guint		 r;
 	GIOChannel	*channel;
-	struct gm_abbott_conn *conn;
+	struct gm_abfr_conn *conn;
 
 	conn = calloc(1, sizeof(*conn));
 	if (conn == NULL) {
@@ -318,7 +318,7 @@ gm_abbott_conn_init(struct gm_state *state, char *dev)
 	SLIST_INIT(&conn->entries);
 	conn->gm_state = state;
 
-	fd = gm_abbott_device_init(dev);
+	fd = gm_abfr_device_init(dev);
 	if (fd < 0) {
 		fprintf(stderr, "Cannnot open device\n");
 
@@ -334,20 +334,20 @@ gm_abbott_conn_init(struct gm_state *state, char *dev)
 		return NULL;
 	}
 
-	r = g_io_add_watch(channel, G_IO_IN | G_IO_HUP, gm_abbott_in, conn);
+	r = g_io_add_watch(channel, G_IO_IN | G_IO_HUP, gm_abfr_in, conn);
 	if (!r) {
 		g_error("Cannnot watch GIOChannel");
 
 		goto fail;	
 	}
 
-	r = g_io_add_watch(channel, G_IO_OUT | G_IO_HUP, gm_abbott_out, conn);
+	r = g_io_add_watch(channel, G_IO_OUT | G_IO_HUP, gm_abfr_out, conn);
 	if (!r) {
 		g_error("Cannnot watch GIOChannel");
 		goto fail;
 	}
 
-	r = g_io_add_watch(channel, G_IO_ERR | G_IO_HUP, gm_abbott_error, conn);
+	r = g_io_add_watch(channel, G_IO_ERR | G_IO_HUP, gm_abfr_error, conn);
 	if (!r) {
 		g_error("Cannnot watch GIOChannel");
 		goto fail;
@@ -363,31 +363,31 @@ fail:
 }
 
 static void
-gm_abbott_parseline(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parseline(struct gm_abfr_conn *conn, char *line)
 {
 	int old_state = conn->protocol_state;
 
 	switch(conn->protocol_state) {
-		case ABBOTT_DEVICE_TYPE:
-			gm_abbott_parsedev(conn, line);
+		case ABFR_DEVICE_TYPE:
+			gm_abfr_parsedev(conn, line);
 			break;
-		case ABBOTT_SOFTWARE_REVISION:
-			gm_abbott_parsesoft(conn, line);
+		case ABFR_SOFTWARE_REVISION:
+			gm_abfr_parsesoft(conn, line);
 			break;
-		case ABBOTT_CURRENTDATETIME:
-			gm_abbott_parsedate(conn, line);
+		case ABFR_CURRENTDATETIME:
+			gm_abfr_parsedate(conn, line);
 			break;
-		case ABBOTT_NUMBEROFRESULTS:
-			gm_abbott_parsenresults(conn, line);
+		case ABFR_NUMBEROFRESULTS:
+			gm_abfr_parsenresults(conn, line);
 			break;
-		case ABBOTT_RESULTLINE:
-			gm_abbott_parseresult(conn, line);
+		case ABFR_RESULTLINE:
+			gm_abfr_parseresult(conn, line);
 			break;
-		case ABBOTT_END:
-			gm_abbott_parseend(conn, line);
+		case ABFR_END:
+			gm_abfr_parseend(conn, line);
 			break;
-		case ABBOTT_EMPTY:
-			gm_abbott_parseempty(conn, line);
+		case ABFR_EMPTY:
+			gm_abfr_parseempty(conn, line);
 			break;
 		default:
 			/* XXX: this shouldn't happen */
@@ -398,44 +398,44 @@ gm_abbott_parseline(struct gm_abbott_conn *conn, char *line)
 }
 
 static void
-gm_abbott_parsedev(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parsedev(struct gm_abfr_conn *conn, char *line)
 {
-	enum abbott_devicetype device_type;
+	enum abfr_devicetype device_type;
 
-	device_type = abbott_parsedev(line);
+	device_type = abfr_parsedev(line);
 	DPRINTF(("%s: device_type: %d\n", __func__, device_type));
 
 	/* Don't continue parsing if the device type isn't known. */
-	if (device_type == ABBOTT_DEV_UNKNOWN)
-		conn->protocol_state = ABBOTT_FAIL;
+	if (device_type == ABFR_DEV_UNKNOWN)
+		conn->protocol_state = ABFR_FAIL;
 	else
 		conn->protocol_state++;
 }
 
 static void
-gm_abbott_parsesoft(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parsesoft(struct gm_abfr_conn *conn, char *line)
 {
-	enum abbott_softwarerevision softrev;
+	enum abfr_softwarerevision softrev;
 
-	softrev = abbott_parsesoft(line);
+	softrev = abfr_parsesoft(line);
 	DPRINTF(("%s: softrev: %d\n", __func__, softrev));
 
 	/* Don't continue parsing if the software revision isn't known. */
-	if (softrev == ABBOTT_SOFT_UNKNOWN)
-		conn->protocol_state = ABBOTT_FAIL;
+	if (softrev == ABFR_SOFT_UNKNOWN)
+		conn->protocol_state = ABFR_FAIL;
 	else
 		conn->protocol_state++;
 }
 
 static void
-gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parsedate(struct gm_abfr_conn *conn, char *line)
 {
 	struct tm device_tm;	
 	int r;
 
-	r = abbott_parsetime(line, &device_tm);
+	r = abfr_parsetime(line, &device_tm);
 	if (r == -1) {
-		conn->protocol_state = ABBOTT_FAIL;
+		conn->protocol_state = ABFR_FAIL;
 		return;
 	}
 
@@ -446,13 +446,13 @@ gm_abbott_parsedate(struct gm_abbott_conn *conn, char *line)
 }
 
 static void
-gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parsenresults(struct gm_abfr_conn *conn, char *line)
 {
 	int nresults;
 
-	nresults = abbott_nentries(line);
+	nresults = abfr_nentries(line);
 	if (nresults == -1)
-		conn->protocol_state = ABBOTT_FAIL;
+		conn->protocol_state = ABFR_FAIL;
 	else
 		conn->protocol_state++;
 
@@ -464,10 +464,10 @@ gm_abbott_parsenresults(struct gm_abbott_conn *conn, char *line)
 }
 
 static void
-gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parseresult(struct gm_abfr_conn *conn, char *line)
 {
 	int r;
-	struct gm_abbott_entry *entry;
+	struct gm_abfr_entry *entry;
 
 	entry = calloc(1, sizeof(*entry));
 	if (entry == NULL) {
@@ -475,7 +475,7 @@ gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
 		return;
 	}
 
-	r = abbott_parse_entry(line, &entry->abbott_entry);
+	r = abfr_parse_entry(line, &entry->abfr_entry);
 
 	/* We can't insert the entry into the database at this point because
 	 * the checksum is calculated over all the messages thus we aren't sure
@@ -483,32 +483,32 @@ gm_abbott_parseresult(struct gm_abbott_conn *conn, char *line)
 	 * linked list and insert them when the checksum can been verified. */
 	SLIST_INSERT_HEAD(&conn->entries, entry, next);
 
-	DPRINTF(("%s: glucose: %d\n", __func__, entry->abbott_entry.bloodglucose));
-	DPRINTF(("%s: month: %d\n", __func__, entry->abbott_entry.ptm.tm_mon));
-	DPRINTF(("%s: day: %d\n", __func__, entry->abbott_entry.ptm.tm_mday));
-	DPRINTF(("%s: year: %d\n", __func__, entry->abbott_entry.ptm.tm_year));
-	DPRINTF(("%s: hour: %d\n", __func__, entry->abbott_entry.ptm.tm_hour));
-	DPRINTF(("%s: min: %d\n", __func__, entry->abbott_entry.ptm.tm_min));
+	DPRINTF(("%s: glucose: %d\n", __func__, entry->abfr_entry.bloodglucose));
+	DPRINTF(("%s: month: %d\n", __func__, entry->abfr_entry.ptm.tm_mon));
+	DPRINTF(("%s: day: %d\n", __func__, entry->abfr_entry.ptm.tm_mday));
+	DPRINTF(("%s: year: %d\n", __func__, entry->abfr_entry.ptm.tm_year));
+	DPRINTF(("%s: hour: %d\n", __func__, entry->abfr_entry.ptm.tm_hour));
+	DPRINTF(("%s: min: %d\n", __func__, entry->abfr_entry.ptm.tm_min));
 
 	conn->results_processed++;
 	if (conn->results_processed >= conn->nresults)
-		conn->protocol_state = ABBOTT_END;
+		conn->protocol_state = ABFR_END;
 
 	DPRINTF(("%s: result\n", __func__));
 }
 
 static void
-gm_abbott_parseend(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parseend(struct gm_abfr_conn *conn, char *line)
 {
 	uint16_t checksum;
 	int r;
 
-	r = abbott_parse_checksum(line, &checksum);
+	r = abfr_parse_checksum(line, &checksum);
 	if (r == -1)
 		return;
 
 	if (conn->checksum == checksum) {
-		struct gm_abbott_entry *e;
+		struct gm_abfr_entry *e;
 
 		/* We are as sure as we can get that the entries are correct.
 		 * Insert them into the database */
@@ -517,8 +517,8 @@ gm_abbott_parseend(struct gm_abbott_conn *conn, char *line)
 			SLIST_REMOVE_HEAD(&conn->entries, next);
 
 			meas_insert(conn->gm_state,
-				e->abbott_entry.bloodglucose,
-				asctime(&e->abbott_entry.ptm), "abbott");
+				e->abfr_entry.bloodglucose,
+				asctime(&e->abfr_entry.ptm), "abfr");
 
 			free(e);
 		}
@@ -528,20 +528,20 @@ gm_abbott_parseend(struct gm_abbott_conn *conn, char *line)
 }
 
 static void
-gm_abbott_parseempty(struct gm_abbott_conn *conn, char *line)
+gm_abfr_parseempty(struct gm_abfr_conn *conn, char *line)
 {
 }
 
 static gboolean
-gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data)
+gm_abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 {
 	GIOStatus	 status;
 	gsize		 terminator_pos;
 	GError		*error = NULL;
-	struct gm_abbott_conn *abbott_state = data;
+	struct gm_abfr_conn *abfr_state = data;
 	GString		*line;
 
-	if (abbott_state->protocol_state == ABBOTT_FAIL) {
+	if (abfr_state->protocol_state == ABFR_FAIL) {
 		/* XXX: stop processing */
 	}
 
@@ -556,8 +556,8 @@ gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 		DPRINTF(("%s: resource temp unavail.\n", __func__));
 	} else if (status == G_IO_STATUS_NORMAL) {
 		/* Calculate the checksum before the newline terminators are cut off */
-		if (abbott_state->protocol_state != ABBOTT_END)
-			abbott_state->checksum += abbott_calc_checksum(line->str);
+		if (abfr_state->protocol_state != ABFR_END)
+			abfr_state->checksum += abfr_calc_checksum(line->str);
 
 		/* Cut off the newline terminators */
 		line = g_string_truncate(line, terminator_pos);
@@ -565,7 +565,7 @@ gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 		DPRINTF(("%s: line(%zu): \"%s\"\n", __func__, line->len, line->str));
 
 		if (line->len > 0)
-			gm_abbott_parseline(abbott_state, line->str);
+			gm_abfr_parseline(abfr_state, line->str);
 	}
 
 	g_string_free(line, TRUE);
@@ -577,15 +577,15 @@ gm_abbott_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 }
 
 static gboolean
-gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data)
+gm_abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data)
 {
 	gchar		 buf[] = "mem";
 	gsize		 wrote_len;
 	GError		*error = NULL;
 	GIOStatus	 status;
-	struct gm_abbott_conn *abbott_state = data;
+	struct gm_abfr_conn *abfr_state = data;
 
-	if (abbott_state->protocol_state != ABBOTT_SEND_MEM) {
+	if (abfr_state->protocol_state != ABFR_SEND_MEM) {
 		return FALSE;
 	}
 
@@ -595,13 +595,13 @@ gm_abbott_out(GIOChannel *gio, GIOCondition condition, gpointer data)
 
 	DPRINTF(("%s: bytes written: %zu status: %d\n", __func__, wrote_len, status));
 
-	abbott_state->protocol_state++;
+	abfr_state->protocol_state++;
 
 	return TRUE;
 }
 
 static gboolean
-gm_abbott_error(GIOChannel *gio, GIOCondition condition, gpointer data)
+gm_abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data)
 {
 	printf("error\n");
 
@@ -640,14 +640,14 @@ gm_process_config(struct gm_state *state)
 {
 
 #if 1
-	struct gm_abbott_conn	*abbott_conn;
+	struct gm_abfr_conn	*abfr_conn;
 
-	abbott_conn = gm_abbott_conn_init(state, "/dev/ttyU0");
-	if (abbott_conn == NULL) {
+	abfr_conn = gm_abfr_conn_init(state, "/dev/ttyU0");
+	if (abfr_conn == NULL) {
 		return -1;
 	}
 
-	state->conns[state->nconns++] = (struct gm_generic_conn *)abbott_conn;
+	state->conns[state->nconns++] = (struct gm_generic_conn *)abfr_conn;
 #else
 	struct gm_dummy_conn	*dummy_conn;
 

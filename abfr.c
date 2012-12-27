@@ -23,7 +23,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "abbott.h"
+#include "abfr.h"
 
 int dev_cmp(const void *k, const void *e);
 int rev_cmp(const void *k, const void *e);
@@ -31,12 +31,12 @@ int month_cmp(const void *k, const void *e);
 
 struct devlist {
 	char			*devicename;
-	enum abbott_devicetype	 devicetype;
+	enum abfr_devicetype	 devicetype;
 };
 
 struct softlist {
 	char				*softwarename;
-	enum abbott_softwarerevision	 softwaretype;
+	enum abfr_softwarerevision	 softwaretype;
 };
 
 struct monthlist {
@@ -51,25 +51,25 @@ dev_cmp(const void *k, const void *e)
 }
 
 
-enum abbott_devicetype
-abbott_parsedev(char *type)
+enum abfr_devicetype
+abfr_parsedev(char *type)
 {
 	const struct devlist   *p;
 
 	/* keep sorted */
-	struct devlist abbott_typelist[] = {
-		{ "CDMK311-B0764", ABBOTT_DEV_CDMK311_B0764 }, // FreeStyle Freedom Lite
-		{ "DAMH359-63524", ABBOTT_DEV_DAMH359_63524 }, // FreeStyle Mini
-		{ "DBMN169-C4824", ABBOTT_DEV_DBMN169_C4824 }  // FreeStyle Lite
+	struct devlist abfr_typelist[] = {
+		{ "CDMK311-B0764", ABFR_DEV_CDMK311_B0764 }, // FreeStyle Freedom Lite
+		{ "DAMH359-63524", ABFR_DEV_DAMH359_63524 }, // FreeStyle Mini
+		{ "DBMN169-C4824", ABFR_DEV_DBMN169_C4824 }  // FreeStyle Lite
 	};
 
-	p = bsearch(type, abbott_typelist, sizeof(abbott_typelist)/sizeof(abbott_typelist[0]),
-		sizeof(abbott_typelist[0]), dev_cmp);
+	p = bsearch(type, abfr_typelist, sizeof(abfr_typelist)/sizeof(abfr_typelist[0]),
+		sizeof(abfr_typelist[0]), dev_cmp);
 
 	if (p)
 		return p->devicetype;
 
-	return ABBOTT_DEV_UNKNOWN;
+	return ABFR_DEV_UNKNOWN;
 }
 
 int
@@ -78,27 +78,27 @@ rev_cmp(const void *k, const void *e)
         return (strcmp(k, ((const struct softlist *)e)->softwarename));
 }
 
-enum abbott_softwarerevision
-abbott_parsesoft(char *rev)
+enum abfr_softwarerevision
+abfr_parsesoft(char *rev)
 {
 	const struct softlist   *p;
 
 	/* keep sorted */
-	struct softlist abbott_revlist[] = {
-		{ "0.31-P",ABBOTT_SOFT_0_31_P}, // On my FreeStyle Freedom Lite (The missing spaces isn't a mistake)
-		{ "0.31-P1-B0764", ABBOTT_SOFT_0_31_P1_B0764 },
-		{ "1.43       -P", ABBOTT_SOFT_1_43_P}, // On my FreeStyle Lite
-		{ "4.0100     -P", ABBOTT_SOFT_4_0100_P}, // On my FreeStyle Mini
+	struct softlist abfr_revlist[] = {
+		{ "0.31-P",ABFR_SOFT_0_31_P}, // On my FreeStyle Freedom Lite (The missing spaces isn't a mistake)
+		{ "0.31-P1-B0764", ABFR_SOFT_0_31_P1_B0764 },
+		{ "1.43       -P", ABFR_SOFT_1_43_P}, // On my FreeStyle Lite
+		{ "4.0100     -P", ABFR_SOFT_4_0100_P}, // On my FreeStyle Mini
 	};
 
 
-	p = bsearch(rev, abbott_revlist, sizeof(abbott_revlist)/sizeof(abbott_revlist[0]),
-		sizeof(abbott_revlist[0]), dev_cmp);
+	p = bsearch(rev, abfr_revlist, sizeof(abfr_revlist)/sizeof(abfr_revlist[0]),
+		sizeof(abfr_revlist[0]), dev_cmp);
 
 	if (p)
 		return p->softwaretype;
 
-	return ABBOTT_SOFT_UNKNOWN;
+	return ABFR_SOFT_UNKNOWN;
 }
 
 int
@@ -108,7 +108,7 @@ month_cmp(const void *k, const void *e)
 }
 
 int
-abbott_nentries(char *p)
+abfr_nentries(char *p)
 {
 	int r;
 	const char	*errstr;
@@ -124,7 +124,7 @@ abbott_nentries(char *p)
 
 // 234  Jan  17 2010 00:39 00 0x00
 int
-abbott_parse_entry(char *p, struct abbott_entry *entry)
+abfr_parse_entry(char *p, struct abfr_entry *entry)
 {
 	char			*p2;
 	const char		*errstr;
@@ -222,7 +222,7 @@ fail:
 
 /* Jan  21 2010 20:40:00 */
 int
-abbott_parsetime(char *p, struct tm *r)
+abfr_parsetime(char *p, struct tm *r)
 {
 	int	yearint;
 	struct monthlist *m;
@@ -311,7 +311,7 @@ fail:
 }
 
 uint16_t
-abbott_calc_checksum(char *line)
+abfr_calc_checksum(char *line)
 {
 	int i;
 	uint16_t checksum = 0;
@@ -323,7 +323,7 @@ abbott_calc_checksum(char *line)
 }
 
 int
-abbott_parse_checksum(char *line, uint16_t *checksum)
+abfr_parse_checksum(char *line, uint16_t *checksum)
 {
 	char *end, *strchecksum, *endptr;
 	unsigned long ul;
