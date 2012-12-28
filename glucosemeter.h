@@ -41,7 +41,7 @@ struct gm_state {
 };
 
 int meas_insert(struct gm_state *state, int glucose, char *date, char *device);
-static GtkTreeModel *meas_model(struct gm_state *state);
+GtkTreeModel *meas_model(struct gm_state *state);
 int meas_model_fill(struct gm_state *state, GtkListStore *store);
 
 

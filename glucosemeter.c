@@ -125,7 +125,7 @@ fail:
 	return -1;
 }
 
-static GtkTreeModel *
+GtkTreeModel *
 meas_model(struct gm_state *state)
 {
 	GtkListStore	*store;
