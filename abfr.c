@@ -39,15 +39,14 @@
 #define DPRINTF(x)
 #endif
 
-static int abfr_device_init(char *dev);
-static void abfr_line_dev(struct abfr_conn *conn, char *line);
-static void abfr_line_soft(struct abfr_conn *conn, char *line);
-static void abfr_line_date(struct abfr_conn *conn, char *line);
-static void abfr_line_nresults(struct abfr_conn *conn, char *line);
-static void abfr_line_result(struct abfr_conn *conn, char *line);
-static void abfr_line_end(struct abfr_conn *conn, char *line);
-static void abfr_line_empty(struct abfr_conn *conn, char *line);
-static void abfr_parseline(struct abfr_conn *conn, char *line);
+static void abfr_line_dev(struct abfr_dev *dev, char *line);
+static void abfr_line_soft(struct abfr_dev *dev, char *line);
+static void abfr_line_date(struct abfr_dev *dev, char *line);
+static void abfr_line_nresults(struct abfr_dev *dev, char *line);
+static void abfr_line_result(struct abfr_dev *dev, char *line);
+static void abfr_line_end(struct abfr_dev *dev, char *line);
+static void abfr_line_empty(struct abfr_dev *dev, char *line);
+static void abfr_parseline(struct abfr_dev *dev, char *line);
 
 static int			abfr_parsetime(char *p, struct tm *r);
 static enum abfr_devtype	abfr_parsedev(char *type);
@@ -60,6 +59,22 @@ static int			abfr_parse_checksum(char *line, uint16_t *checksum);
 static int dev_cmp(const void *k, const void *e);
 static int rev_cmp(const void *k, const void *e);
 static int month_cmp(const void *k, const void *e);
+
+static gboolean abfr_in(struct device *dev, GIOChannel *gio);
+static gboolean abfr_out(struct device *dev, GIOChannel *gio);
+static gboolean abfr_error(struct device *dev, GIOChannel *gio);
+
+int abfr_start(struct device *);
+int abfr_stop(struct device *);
+
+struct driver abfr_driver = {
+	"abfr",
+	abfr_start,
+	abfr_stop,
+	abfr_in,
+	abfr_out,
+	abfr_error,
+};
 
 struct devlist {
 	char			*devicename;
@@ -75,6 +90,105 @@ struct monthlist {
 	char	*month;
 	int 	 number;
 };
+
+struct abfr_dev *
+abfr_init(char *device_file)
+{
+	struct abfr_dev *dev;
+
+	dev = calloc(1, sizeof(*dev));
+	if (dev == NULL) {
+		return NULL;
+	}
+
+	return dev;
+}
+
+static int
+abfr_open(char *dev)
+{
+	int fd;
+        struct termios ts;
+
+	fd = open(dev, O_RDWR | O_NONBLOCK | O_NOCTTY);
+	if (fd < 0) {
+		perror("open");
+		return fd;
+	}
+
+        tcgetattr(fd, &ts);
+        tcflush(fd, TCIFLUSH);
+
+	int r;
+        r = tcflush(fd, TCOFLUSH);
+	if (r == -1) {
+		perror("tcflush");
+	}
+
+        bzero(&ts, sizeof(ts));
+
+        ts.c_lflag = 0;
+        ts.c_cflag = B19200 | CS8 |CREAD | CLOCAL | CRTSCTS;
+	ts.c_cc[VTIME] = 5;
+	ts.c_cc[VMIN] = 5;
+
+        cfsetospeed(&ts, B19200);
+        tcsetattr(fd, TCSANOW, &ts);
+
+	return fd;
+}
+
+int
+abfr_start(struct device *dev)
+{
+	struct abfr_dev		*abfr_dev = (struct abfr_dev *)dev;
+	int			 fd;
+	guint		 	 r;
+
+	fd = abfr_open(abfr_dev->file);
+	if (fd < 0) {
+		goto fail;
+	}
+
+	dev->channel = g_io_channel_unix_new(fd);
+	if (dev->channel == NULL) {
+		g_error("Cannnot create GIOChannel");
+
+		goto fail;
+	}
+
+	r = g_io_add_watch(dev->channel, G_IO_IN | G_IO_HUP, devicemgmt_input, dev);
+	if (!r) {
+		g_error("Cannnot watch GIOChannel");
+
+		goto fail;	
+	}
+
+	r = g_io_add_watch(dev->channel, G_IO_OUT | G_IO_HUP, devicemgmt_output, dev);
+	if (!r) {
+		g_error("Cannnot watch GIOChannel");
+		goto fail;
+	}
+
+	r = g_io_add_watch(dev->channel, G_IO_ERR | G_IO_HUP, devicemgmt_error, dev);
+	if (!r) {
+		g_error("Cannnot watch GIOChannel");
+		goto fail;
+	}
+
+	return 1;
+fail:
+	/* XXX: cleanup fd/channels */
+	return (-1);
+}
+
+int
+abfr_stop(struct device *dev)
+{
+	/* XXX: close fd/channels */
+
+	return 1;
+}
 
 static int
 dev_cmp(const void *k, const void *e)
@@ -381,137 +495,43 @@ abfr_parse_checksum(char *line, uint16_t *checksum)
 	return 0;
 }
 
-static int
-abfr_device_init(char *dev)
-{
-	int fd;
-        struct termios ts;
-
-	fd = open(dev, O_RDWR | O_NONBLOCK | O_NOCTTY);
-	if (fd < 0) {
-		perror("open");
-		return fd;
-	}
-
-        tcgetattr(fd, &ts);
-        tcflush(fd, TCIFLUSH);
-
-	int r;
-        r = tcflush(fd, TCOFLUSH);
-	if (r == -1) {
-		perror("tcflush");
-	}
-
-        bzero(&ts, sizeof(ts));
-
-        ts.c_lflag = 0;
-        ts.c_cflag = B19200 | CS8 |CREAD | CLOCAL | CRTSCTS;
-	ts.c_cc[VTIME] = 5;
-	ts.c_cc[VMIN] = 5;
-
-        cfsetospeed(&ts, B19200);
-        tcsetattr(fd, TCSANOW, &ts);
-
-	return fd;
-}
-
-struct abfr_conn *
-abfr_conn_init(struct gm_state *state, char *dev)
-{
-	int		 fd;
-	guint		 r;
-	GIOChannel	*channel;
-	struct abfr_conn *conn;
-
-	conn = calloc(1, sizeof(*conn));
-	if (conn == NULL) {
-		return NULL;
-	}
-
-	SLIST_INIT(&conn->entries);
-	conn->gm_state = state;
-
-	fd = abfr_device_init(dev);
-	if (fd < 0) {
-		fprintf(stderr, "Cannnot open device\n");
-
-		free(conn);
-		return NULL;
-	}
-
-	channel = g_io_channel_unix_new(fd);
-	if (channel == NULL) {
-		g_error("Cannnot create GIOChannel");
-
-		free(conn);
-		return NULL;
-	}
-
-	r = g_io_add_watch(channel, G_IO_IN | G_IO_HUP, abfr_in, conn);
-	if (!r) {
-		g_error("Cannnot watch GIOChannel");
-
-		goto fail;	
-	}
-
-	r = g_io_add_watch(channel, G_IO_OUT | G_IO_HUP, abfr_out, conn);
-	if (!r) {
-		g_error("Cannnot watch GIOChannel");
-		goto fail;
-	}
-
-	r = g_io_add_watch(channel, G_IO_ERR | G_IO_HUP, abfr_error, conn);
-	if (!r) {
-		g_error("Cannnot watch GIOChannel");
-		goto fail;
-	}
-
-	return conn;
-
-fail:
-	/* XXX: free channel and destroy watch */
-	free(conn);
-	return NULL;
-	
-}
-
 static void
-abfr_parseline(struct abfr_conn *conn, char *line)
+abfr_parseline(struct abfr_dev *dev, char *line)
 {
-	int old_state = conn->protocol_state;
+	int old_state = dev->protocol_state;
 
-	switch(conn->protocol_state) {
+	switch(dev->protocol_state) {
 		case ABFR_DEVICE_TYPE:
-			abfr_line_dev(conn, line);
+			abfr_line_dev(dev, line);
 			break;
 		case ABFR_SOFTWARE_REVISION:
-			abfr_line_soft(conn, line);
+			abfr_line_soft(dev, line);
 			break;
 		case ABFR_CURRENTDATETIME:
-			abfr_line_date(conn, line);
+			abfr_line_date(dev, line);
 			break;
 		case ABFR_NUMBEROFRESULTS:
-			abfr_line_nresults(conn, line);
+			abfr_line_nresults(dev, line);
 			break;
 		case ABFR_RESULTLINE:
-			abfr_line_result(conn, line);
+			abfr_line_result(dev, line);
 			break;
 		case ABFR_END:
-			abfr_line_end(conn, line);
+			abfr_line_end(dev, line);
 			break;
 		case ABFR_EMPTY:
-			abfr_line_empty(conn, line);
+			abfr_line_empty(dev, line);
 			break;
 		default:
 			/* XXX: this shouldn't happen */
 			break;
 	}
 
-	DPRINTF(("%s: state: %d -> %d\n", __func__, old_state, conn->protocol_state));
+	DPRINTF(("%s: state: %d -> %d\n", __func__, old_state, dev->protocol_state));
 }
 
 static void
-abfr_line_dev(struct abfr_conn *conn, char *line)
+abfr_line_dev(struct abfr_dev *dev, char *line)
 {
 	enum abfr_devtype device_type;
 
@@ -520,13 +540,13 @@ abfr_line_dev(struct abfr_conn *conn, char *line)
 
 	/* Don't continue parsing if the device type isn't known. */
 	if (device_type == ABFR_DEV_UNKNOWN)
-		conn->protocol_state = ABFR_FAIL;
+		dev->protocol_state = ABFR_FAIL;
 	else
-		conn->protocol_state++;
+		dev->protocol_state++;
 }
 
 static void
-abfr_line_soft(struct abfr_conn *conn, char *line)
+abfr_line_soft(struct abfr_dev *dev, char *line)
 {
 	enum abfr_softrev softrev;
 
@@ -535,41 +555,41 @@ abfr_line_soft(struct abfr_conn *conn, char *line)
 
 	/* Don't continue parsing if the software revision isn't known. */
 	if (softrev == ABFR_SOFT_UNKNOWN)
-		conn->protocol_state = ABFR_FAIL;
+		dev->protocol_state = ABFR_FAIL;
 	else
-		conn->protocol_state++;
+		dev->protocol_state++;
 }
 
 static void
-abfr_line_date(struct abfr_conn *conn, char *line)
+abfr_line_date(struct abfr_dev *dev, char *line)
 {
 	struct tm device_tm;	
 	int r;
 
 	r = abfr_parsetime(line, &device_tm);
 	if (r == -1) {
-		conn->protocol_state = ABFR_FAIL;
+		dev->protocol_state = ABFR_FAIL;
 		return;
 	}
 
 	DPRINTF(("%s: currentdatetime\n", __func__));
-	conn->protocol_state++;
+	dev->protocol_state++;
 
 	return;
 }
 
 static void
-abfr_line_nresults(struct abfr_conn *conn, char *line)
+abfr_line_nresults(struct abfr_dev *dev, char *line)
 {
 	int nresults;
 
 	nresults = abfr_nentries(line);
 	if (nresults == -1)
-		conn->protocol_state = ABFR_FAIL;
+		dev->protocol_state = ABFR_FAIL;
 	else
-		conn->protocol_state++;
+		dev->protocol_state++;
 
-	conn->nresults = nresults;
+	dev->nresults = nresults;
 
 	DPRINTF(("%s: numberofresults\n", __func__));
 
@@ -577,7 +597,7 @@ abfr_line_nresults(struct abfr_conn *conn, char *line)
 }
 
 static void
-abfr_line_result(struct abfr_conn *conn, char *line)
+abfr_line_result(struct abfr_dev *dev, char *line)
 {
 	int r;
 	struct abfr_entry *entry;
@@ -594,7 +614,7 @@ abfr_line_result(struct abfr_conn *conn, char *line)
 	 * the checksum is calculated over all the messages thus we aren't sure
 	 * yet if this entry is correct. Instead put all the entries in a
 	 * linked list and insert them when the checksum can been verified. */
-	SLIST_INSERT_HEAD(&conn->entries, entry, next);
+	SLIST_INSERT_HEAD(&dev->entries, entry, next);
 
 	DPRINTF(("%s: glucose: %d\n", __func__, entry->bloodglucose));
 	DPRINTF(("%s: month: %d\n", __func__, entry->ptm.tm_mon));
@@ -603,15 +623,15 @@ abfr_line_result(struct abfr_conn *conn, char *line)
 	DPRINTF(("%s: hour: %d\n", __func__, entry->ptm.tm_hour));
 	DPRINTF(("%s: min: %d\n", __func__, entry->ptm.tm_min));
 
-	conn->results_processed++;
-	if (conn->results_processed >= conn->nresults)
-		conn->protocol_state = ABFR_END;
+	dev->results_processed++;
+	if (dev->results_processed >= dev->nresults)
+		dev->protocol_state = ABFR_END;
 
 	DPRINTF(("%s: result\n", __func__));
 }
 
 static void
-abfr_line_end(struct abfr_conn *conn, char *line)
+abfr_line_end(struct abfr_dev *dev, char *line)
 {
 	uint16_t checksum;
 	int r;
@@ -620,18 +640,20 @@ abfr_line_end(struct abfr_conn *conn, char *line)
 	if (r == -1)
 		return;
 
-	if (conn->checksum == checksum) {
+	if (dev->checksum == checksum) {
 		struct abfr_entry *e;
 
 		/* We are as sure as we can get that the entries are correct.
 		 * Insert them into the database */
-		while (!SLIST_EMPTY(&conn->entries)) {
-			e = SLIST_FIRST(&conn->entries);
-			SLIST_REMOVE_HEAD(&conn->entries, next);
+		while (!SLIST_EMPTY(&dev->entries)) {
+			e = SLIST_FIRST(&dev->entries);
+			SLIST_REMOVE_HEAD(&dev->entries, next);
 
-			meas_insert(conn->gm_state,
+/*
+			meas_insert(dev->gm_state,
 				e->bloodglucose,
 				asctime(&e->ptm), "abfr");
+*/
 
 			free(e);
 		}
@@ -641,20 +663,20 @@ abfr_line_end(struct abfr_conn *conn, char *line)
 }
 
 static void
-abfr_line_empty(struct abfr_conn *conn, char *line)
+abfr_line_empty(struct abfr_dev *dev, char *line)
 {
 }
 
-gboolean
-abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data)
+static gboolean
+abfr_in(struct device *dev, GIOChannel *gio)
 {
 	GIOStatus	 status;
 	gsize		 terminator_pos;
 	GError		*error = NULL;
-	struct abfr_conn *abfr_state = data;
+	struct abfr_dev *abfr_dev = (struct abfr_dev *)dev;
 	GString		*line;
 
-	if (abfr_state->protocol_state == ABFR_FAIL) {
+	if (abfr_dev->protocol_state == ABFR_FAIL) {
 		/* XXX: stop processing */
 	}
 
@@ -669,8 +691,8 @@ abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 		DPRINTF(("%s: resource temp unavail.\n", __func__));
 	} else if (status == G_IO_STATUS_NORMAL) {
 		/* Calculate the checksum before the newline terminators are cut off */
-		if (abfr_state->protocol_state != ABFR_END)
-			abfr_state->checksum += abfr_calc_checksum(line->str);
+		if (abfr_dev->protocol_state != ABFR_END)
+			abfr_dev->checksum += abfr_calc_checksum(line->str);
 
 		/* Cut off the newline terminators */
 		line = g_string_truncate(line, terminator_pos);
@@ -678,7 +700,7 @@ abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 		DPRINTF(("%s: line(%zu): \"%s\"\n", __func__, line->len, line->str));
 
 		if (line->len > 0)
-			abfr_parseline(abfr_state, line->str);
+			abfr_parseline(abfr_dev, line->str);
 	}
 
 	g_string_free(line, TRUE);
@@ -689,16 +711,16 @@ abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data)
 	return TRUE;
 }
 
-gboolean
-abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data)
+static gboolean
+abfr_out(struct device *dev, GIOChannel *gio)
 {
 	gchar		 buf[] = "mem";
 	gsize		 wrote_len;
 	GError		*error = NULL;
 	GIOStatus	 status;
-	struct abfr_conn *abfr_state = data;
+	struct abfr_dev *abfr_dev = (struct abfr_dev *)dev;
 
-	if (abfr_state->protocol_state != ABFR_SEND_MEM) {
+	if (abfr_dev->protocol_state != ABFR_SEND_MEM) {
 		return FALSE;
 	}
 
@@ -708,13 +730,13 @@ abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data)
 
 	DPRINTF(("%s: bytes written: %zu status: %d\n", __func__, wrote_len, status));
 
-	abfr_state->protocol_state++;
+	abfr_dev->protocol_state++;
 
 	return TRUE;
 }
 
-gboolean
-abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data)
+static gboolean
+abfr_error(struct device *dev, GIOChannel *gio)
 {
 	printf("error\n");
 

@@ -22,26 +22,46 @@
 #include <gtk/gtk.h>
 
 /* glucosemeter.c */
-struct gm_driver_conn {
-	GIOChannel	*channel;
-	size_t		 length;
-};
-
-struct gm_generic_conn {
-	struct gm_driver_conn	conn;
-};
-
-struct gm_state {
-	struct gm_generic_conn	*conns[100];
-	size_t			nconns;
-
+struct device;
+struct gm_conf {
+	TAILQ_HEAD(, device)	 devices;
+	int			 devicemgmt_status;
 	sqlite3			*sqlite3_handle;
 	GtkTreeModel		*measurements;
 };
 
-int		 meas_insert(struct gm_state *state, int glucose, char *date, char *device);
-GtkTreeModel	*meas_model(struct gm_state *state);
-int		 meas_model_fill(struct gm_state *state, GtkListStore *store);
+int		 meas_insert(struct gm_conf *conf, int glucose, char *date, char *device);
+GtkTreeModel	*meas_model(struct gm_conf *conf);
+int		 meas_model_fill(struct gm_conf *conf, GtkListStore *store);
+
+/* devicemgmt.c */
+struct driver;
+struct device {
+	struct driver	*driver;
+	GIOChannel	*channel;
+	struct gm_conf	*conf;
+	size_t		 length;
+	TAILQ_ENTRY(device)	 entry;
+};
+
+struct driver {
+	char *driver_name;
+	int (*driver_start_fn)(struct device *);
+	int (*driver_stop_fn)(struct device *);
+
+	int (*driver_input)(struct device *, GIOChannel *gio);
+	int (*driver_output)(struct device *, GIOChannel *gio);
+	int (*driver_error)(struct device *, GIOChannel *gio);
+};
+
+void devicemgmt_init(struct gm_conf *);
+void devicemgmt_start(struct gm_conf *);
+void devicemgmt_stop(struct gm_conf *);
+int devicemgmt_status(struct gm_conf *);
+
+gboolean devicemgmt_input(GIOChannel *gio, GIOCondition condition, gpointer data);
+gboolean devicemgmt_output(GIOChannel *gio, GIOCondition condition, gpointer data);
+gboolean devicemgmt_error(GIOChannel *gio, GIOCondition condition, gpointer data);
 
 /* abfr.c */
 #define ABFR_MAX_ENTRIES	450
@@ -49,6 +69,8 @@ int		 meas_model_fill(struct gm_state *state, GtkListStore *store);
 // XXX: do these include the NULL terminator?
 #define ABFR_ENTRYLEN	31
 #define ABFR_TIMELEN	16
+
+extern struct driver abfr_driver;
 
 enum abfr_devtype {
 	ABFR_DEV_UNKNOWN,
@@ -73,9 +95,9 @@ struct abfr_entry {
 	SLIST_ENTRY(abfr_entry) next;
 };
 
-struct abfr_conn {
-	struct gm_driver_conn	 conn;
-	struct gm_state		*gm_state;
+struct abfr_dev {
+	struct device			 device;
+	char				*file;
 	enum abfr_protocol_state {
 		ABFR_SEND_MEM,
 		ABFR_DEVICE_TYPE,
@@ -86,14 +108,11 @@ struct abfr_conn {
 		ABFR_END,
 		ABFR_EMPTY,
 		ABFR_FAIL,
-	} protocol_state;
-	uint16_t checksum;
-	int nresults;
-	int results_processed;
-	SLIST_HEAD(, abfr_entry) entries;
+	}				 protocol_state;
+	uint16_t			 checksum;
+	int				 nresults;
+	int				 results_processed;
+	SLIST_HEAD(, abfr_entry)	 entries;
 };
 
-gboolean		 abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data);
-gboolean		 abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data);
-gboolean		 abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data);
-struct abfr_conn	*abfr_conn_init(struct gm_state *state, char *dev);
+struct abfr_dev *abfr_init(char *);

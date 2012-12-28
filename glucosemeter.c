@@ -29,7 +29,6 @@
 
 #include "glucosemeter.h"
 
-int			 gm_process_config(struct gm_state *state);
 void			 gm_refresh(GtkToolButton *button, gpointer user);
 
 #define GM_MEAS_COL_GLUCOSE 0
@@ -38,13 +37,13 @@ void			 gm_refresh(GtkToolButton *button, gpointer user);
 #define GM_MEAS_NUM_COLS 3
 
 int
-meas_insert(struct gm_state *state, int glucose, char *date, char *device)
+meas_insert(struct gm_conf *conf, int glucose, char *date, char *device)
 {
 	int		 r;
 	sqlite3_stmt    *stmt;
 	const char      *sql_tail;
 
-	r = sqlite3_prepare_v2(state->sqlite3_handle, "INSERT OR IGNORE INTO measurements VALUES " \
+	r = sqlite3_prepare_v2(conf->sqlite3_handle, "INSERT OR IGNORE INTO measurements VALUES " \
 		" (?, ?, ?);", -1, &stmt, &sql_tail);
 	if (r != SQLITE_OK) {
 		return -1;
@@ -68,7 +67,7 @@ meas_insert(struct gm_state *state, int glucose, char *date, char *device)
 
 	sqlite3_finalize(stmt);
 
-	meas_model_fill(state, GTK_LIST_STORE(state->measurements));
+	meas_model_fill(conf, GTK_LIST_STORE(conf->measurements));
 
 	return 0;
 fail:
@@ -78,7 +77,7 @@ fail:
 }
 
 int
-meas_model_fill(struct gm_state *state, GtkListStore *store)
+meas_model_fill(struct gm_conf *conf, GtkListStore *store)
 {
 	GtkTreeIter	 iter;
 	int		 r;
@@ -88,7 +87,7 @@ meas_model_fill(struct gm_state *state, GtkListStore *store)
 	gtk_list_store_clear(store);
 
 	/* Fill the measurement store with entries from the database */
-	r = sqlite3_prepare_v2(state->sqlite3_handle,
+	r = sqlite3_prepare_v2(conf->sqlite3_handle,
 			"SELECT glucose, date, device from measurements", -1, &stmt, &sql_tail);
 	if (r != SQLITE_OK)
 		goto fail;
@@ -119,13 +118,13 @@ fail:
 }
 
 GtkTreeModel *
-meas_model(struct gm_state *state)
+meas_model(struct gm_conf *conf)
 {
 	GtkListStore	*store;
 	int		 r;
 	char		*errmsg;
 
-	r = sqlite3_exec(state->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
+	r = sqlite3_exec(conf->sqlite3_handle, "CREATE TABLE IF NOT EXISTS measurements " \
 		" (glucose INTEGER, date DATETIME, device VARCHAR(255), " \
 		" UNIQUE (glucose, date, device))", NULL, NULL, &errmsg);
 	if (r != SQLITE_OK) {
@@ -134,7 +133,7 @@ meas_model(struct gm_state *state)
 
 	store = gtk_list_store_new(GM_MEAS_NUM_COLS, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
 
-	r = meas_model_fill(state, store);
+	r = meas_model_fill(conf, store);
 	if (r == -1)
 		goto fail;
 
@@ -191,25 +190,6 @@ progress_dialog_new(void)
 }
 #endif
 
-/*
- * Method which should process the configuration files. But this code hasn't
- * been written yet.
- */
-int
-gm_process_config(struct gm_state *state)
-{
-	struct abfr_conn	*abfr_conn;
-
-	abfr_conn = abfr_conn_init(state, "/dev/ttyU0");
-	if (abfr_conn == NULL) {
-		return -1;
-	}
-
-	state->conns[state->nconns++] = (struct gm_generic_conn *)abfr_conn;
-
-	return 0;
-}
-
 static gboolean
 gm_delete_cb(GtkWidget *widget, GdkEvent *event, gpointer data)
 {
@@ -225,9 +205,9 @@ gm_destroy_cb(GtkWidget *widget, gpointer data)
 void
 gm_refresh(GtkToolButton *button, gpointer user)  
 {
-	struct gm_state *state = user;
+	struct gm_conf *conf = user;
 
-	meas_model_fill(state, GTK_LIST_STORE(state->measurements));
+	meas_model_fill(conf, GTK_LIST_STORE(conf->measurements));
 
 	printf("refresh\n");
 }
@@ -238,26 +218,39 @@ main(int argc, char *argv[])
 	GtkWidget	*window, *view, *toolbar, *vpaned, *scrollview;
 	GtkToolItem	*refresh;
 	GMainLoop	*loop;
-	struct gm_state  state;
+	struct gm_conf	 conf;
 	int r;
 
-	bzero(&state, sizeof(state));
+	struct abfr_dev *dev;
 
-	r = sqlite3_open("database.sqlite3", &state.sqlite3_handle);
+	devicemgmt_init(&conf);
+	gtk_init(&argc, &argv);
+
+	if ((dev = calloc(1, sizeof(*dev))) == NULL) {
+		perror("calloc");
+		exit(EXIT_FAILURE);
+	}
+	dev->file = strdup("/dev/ttyU0");
+	dev->device.driver = &abfr_driver;
+	dev->device.conf = &conf;
+
+	TAILQ_INSERT_TAIL(&conf.devices, (struct device *)dev, entry);
+
+	devicemgmt_start(&conf);
+
+	r = sqlite3_open("database.sqlite3", &conf.sqlite3_handle);
 	if (r != SQLITE_OK) {
 		// XXX: free handle;
 		return -1;
 	}
 
-	gtk_init(&argc, &argv);
-
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	g_signal_connect(window, "delete-event", G_CALLBACK(gm_delete_cb), NULL);
 	g_signal_connect(window, "destroy", G_CALLBACK(gm_destroy_cb), NULL);
 
-	state.measurements = meas_model(&state);
+	conf.measurements = meas_model(&conf);
 
-	view = glucose_listview(state.measurements);
+	view = glucose_listview(conf.measurements);
 
 	scrollview = gtk_scrolled_window_new(NULL, NULL);
 	gtk_scrolled_window_set_policy(scrollview, GTK_POLICY_AUTOMATIC,
@@ -267,7 +260,7 @@ main(int argc, char *argv[])
 	toolbar = gtk_toolbar_new();
 
 	refresh = gtk_tool_button_new_from_stock(GTK_STOCK_REFRESH);
-	g_signal_connect(refresh, "clicked", G_CALLBACK(gm_refresh), &state); 
+	g_signal_connect(refresh, "clicked", G_CALLBACK(gm_refresh), &conf); 
 	gtk_toolbar_insert(GTK_TOOLBAR(toolbar), refresh, -1);
 
 	vpaned = gtk_vpaned_new();
@@ -280,9 +273,6 @@ main(int argc, char *argv[])
 	gtk_widget_show_all(window);
 
 	loop = g_main_loop_new(NULL, TRUE);
-
-	if (gm_process_config(&state) == -1)
-		exit(EXIT_FAILURE);
 
 	g_main_loop_run(loop);
 
