@@ -72,16 +72,11 @@ struct abfr_entry {
 	int		bloodglucose;
 	struct tm	ptm;
 	int		plasmatype;
+
+	SLIST_ENTRY(abfr_entry) next;
 };
 
-struct gm_abfr_entry {
-	struct abfr_entry	abfr_entry;
-
-	SLIST_ENTRY(gm_abfr_entry) next;
-};
-
-
-struct gm_abfr_conn {
+struct abfr_conn {
 	struct gm_driver_conn	 conn;
 	struct gm_state		*gm_state;
 	enum abfr_protocol_state {
@@ -98,18 +93,10 @@ struct gm_abfr_conn {
 	uint16_t checksum;
 	int nresults;
 	int results_processed;
-	SLIST_HEAD(, gm_abfr_entry) entries;
+	SLIST_HEAD(, abfr_entry) entries;
 };
 
-int	 abfr_parsetime(char *p, struct tm *r);
-enum abfr_devicetype abfr_parsedev(char *type);
-enum abfr_softwarerevision abfr_parsesoft(char *rev);
-int abfr_nentries(char *);
-int abfr_parse_entry(char *p, struct abfr_entry *entry);
-uint16_t abfr_calc_checksum(char *line);
-int abfr_parse_checksum(char *line, uint16_t *checksum);
-
-gboolean gm_abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data);
-gboolean gm_abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data);
-gboolean gm_abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data);
-struct gm_abfr_conn * gm_abfr_conn_init(struct gm_state *state, char *dev);
+gboolean abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data);
+gboolean abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data);
+gboolean abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data);
+struct abfr_conn * abfr_conn_init(struct gm_state *state, char *dev);

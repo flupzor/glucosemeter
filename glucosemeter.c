@@ -232,9 +232,9 @@ gm_process_config(struct gm_state *state)
 {
 
 #if 1
-	struct gm_abfr_conn	*abfr_conn;
+	struct abfr_conn	*abfr_conn;
 
-	abfr_conn = gm_abfr_conn_init(state, "/dev/ttyU0");
+	abfr_conn = abfr_conn_init(state, "/dev/ttyU0");
 	if (abfr_conn == NULL) {
 		return -1;
 	}
