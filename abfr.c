@@ -49,13 +49,13 @@ static void abfr_line_end(struct abfr_conn *conn, char *line);
 static void abfr_line_empty(struct abfr_conn *conn, char *line);
 static void abfr_parseline(struct abfr_conn *conn, char *line);
 
-static int	 abfr_parsetime(char *p, struct tm *r);
-static enum abfr_devtype abfr_parsedev(char *type);
-static enum abfr_softrev abfr_parsesoft(char *rev);
-static int abfr_nentries(char *);
-static int abfr_parse_entry(char *p, struct abfr_entry *entry);
-static uint16_t abfr_calc_checksum(char *line);
-static int abfr_parse_checksum(char *line, uint16_t *checksum);
+static int			abfr_parsetime(char *p, struct tm *r);
+static enum abfr_devtype	abfr_parsedev(char *type);
+static enum abfr_softrev	abfr_parsesoft(char *rev);
+static int			abfr_nentries(char *);
+static int			abfr_parse_entry(char *p, struct abfr_entry *entry);
+static uint16_t			abfr_calc_checksum(char *line);
+static int			abfr_parse_checksum(char *line, uint16_t *checksum);
 
 static int dev_cmp(const void *k, const void *e);
 static int rev_cmp(const void *k, const void *e);
@@ -81,7 +81,6 @@ dev_cmp(const void *k, const void *e)
 {
         return (strcmp(k, ((const struct devlist *)e)->devicename));
 }
-
 
 static enum abfr_devtype
 abfr_parsedev(char *type)
