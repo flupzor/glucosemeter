@@ -29,12 +29,6 @@
 
 #include "glucosemeter.h"
 
-struct gm_dummy_conn {
-	struct gm_driver_conn	conn;
-};
-
-gboolean		 gm_dummy_cb(gpointer user);
-struct gm_dummy_conn	*gm_dummy_conn_init(struct gm_state *state);
 int			 gm_process_config(struct gm_state *state);
 void			 gm_refresh(GtkToolButton *button, gpointer user);
 
@@ -174,31 +168,6 @@ glucose_listview(GtkTreeModel *model)
 	return view;
 }
 
-gboolean
-gm_dummy_cb(gpointer user)
-{
-	struct gm_state *state = user;
-
-	meas_insert(state, 100, "2012-11-17 13:13", "dummy");
-
-	return TRUE;
-}
-
-struct gm_dummy_conn *
-gm_dummy_conn_init(struct gm_state *state)
-{
-	struct gm_dummy_conn *conn;
-
-	conn = calloc(1, sizeof(*conn));
-	if (conn == NULL) {
-		return NULL;
-	}
-
-	g_timeout_add_seconds(10, gm_dummy_cb, state);
-
-	return conn;
-}
-
 #if 0
 int
 progress_dialog_new(void)
@@ -229,8 +198,6 @@ progress_dialog_new(void)
 int
 gm_process_config(struct gm_state *state)
 {
-
-#if 1
 	struct abfr_conn	*abfr_conn;
 
 	abfr_conn = abfr_conn_init(state, "/dev/ttyU0");
@@ -239,16 +206,6 @@ gm_process_config(struct gm_state *state)
 	}
 
 	state->conns[state->nconns++] = (struct gm_generic_conn *)abfr_conn;
-#else
-	struct gm_dummy_conn	*dummy_conn;
-
-	dummy_conn = gm_dummy_conn_init(state);
-	if (dummy_conn == NULL) {
-		return -1;
-	}
-
-	state->conns[state->nconns++] = (struct gm_generic_conn *)dummy_conn;
-#endif
 
 	return 0;
 }
