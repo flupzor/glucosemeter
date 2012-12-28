@@ -117,7 +117,7 @@ abfr_parsesoft(char *rev)
 
 
 	p = bsearch(rev, abfr_revlist, sizeof(abfr_revlist)/sizeof(abfr_revlist[0]),
-		sizeof(abfr_revlist[0]), dev_cmp);
+		sizeof(abfr_revlist[0]), rev_cmp);
 
 	if (p)
 		return p->softwaretype;
