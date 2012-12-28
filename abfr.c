@@ -50,8 +50,8 @@ static void abfr_line_empty(struct abfr_conn *conn, char *line);
 static void abfr_parseline(struct abfr_conn *conn, char *line);
 
 static int	 abfr_parsetime(char *p, struct tm *r);
-static enum abfr_devicetype abfr_parsedev(char *type);
-static enum abfr_softwarerevision abfr_parsesoft(char *rev);
+static enum abfr_devtype abfr_parsedev(char *type);
+static enum abfr_softrev abfr_parsesoft(char *rev);
 static int abfr_nentries(char *);
 static int abfr_parse_entry(char *p, struct abfr_entry *entry);
 static uint16_t abfr_calc_checksum(char *line);
@@ -63,12 +63,12 @@ static int month_cmp(const void *k, const void *e);
 
 struct devlist {
 	char			*devicename;
-	enum abfr_devicetype	 devicetype;
+	enum abfr_devtype	 devicetype;
 };
 
 struct softlist {
 	char				*softwarename;
-	enum abfr_softwarerevision	 softwaretype;
+	enum abfr_softrev	 softwaretype;
 };
 
 struct monthlist {
@@ -83,7 +83,7 @@ dev_cmp(const void *k, const void *e)
 }
 
 
-static enum abfr_devicetype
+static enum abfr_devtype
 abfr_parsedev(char *type)
 {
 	const struct devlist   *p;
@@ -110,7 +110,7 @@ rev_cmp(const void *k, const void *e)
         return (strcmp(k, ((const struct softlist *)e)->softwarename));
 }
 
-static enum abfr_softwarerevision
+static enum abfr_softrev
 abfr_parsesoft(char *rev)
 {
 	const struct softlist   *p;
@@ -514,7 +514,7 @@ abfr_parseline(struct abfr_conn *conn, char *line)
 static void
 abfr_line_dev(struct abfr_conn *conn, char *line)
 {
-	enum abfr_devicetype device_type;
+	enum abfr_devtype device_type;
 
 	device_type = abfr_parsedev(line);
 	DPRINTF(("%s: device_type: %d\n", __func__, device_type));
@@ -529,7 +529,7 @@ abfr_line_dev(struct abfr_conn *conn, char *line)
 static void
 abfr_line_soft(struct abfr_conn *conn, char *line)
 {
-	enum abfr_softwarerevision softrev;
+	enum abfr_softrev softrev;
 
 	softrev = abfr_parsesoft(line);
 	DPRINTF(("%s: softrev: %d\n", __func__, softrev));

@@ -53,14 +53,14 @@ int meas_model_fill(struct gm_state *state, GtkListStore *store);
 #define ABFR_ENTRYLEN	31
 #define ABFR_TIMELEN	16
 
-enum abfr_devicetype {
+enum abfr_devtype {
 	ABFR_DEV_UNKNOWN,
 	ABFR_DEV_CDMK311_B0764, // FreeStyle Freedom Lite
 	ABFR_DEV_DAMH359_63524, // FreeStyle Mini
 	ABFR_DEV_DBMN169_C4824  // FreeStyle Lite
 };
 
-enum abfr_softwarerevision {
+enum abfr_softrev {
 	ABFR_SOFT_UNKNOWN,
 	ABFR_SOFT_4_0100_P,
 	ABFR_SOFT_0_31_P1_B0764,
