@@ -33,11 +33,10 @@ struct gm_dummy_conn {
 	struct gm_driver_conn	conn;
 };
 
-gboolean gm_dummy_cb(gpointer user);
-struct gm_dummy_conn *gm_dummy_conn_init(struct gm_state *state);
-int gm_process_config(struct gm_state *state);
-void gm_refresh(GtkToolButton *button, gpointer user);
-
+gboolean		 gm_dummy_cb(gpointer user);
+struct gm_dummy_conn	*gm_dummy_conn_init(struct gm_state *state);
+int			 gm_process_config(struct gm_state *state);
+void			 gm_refresh(GtkToolButton *button, gpointer user);
 
 #define GM_MEAS_COL_GLUCOSE 0
 #define GM_MEAS_COL_DATE 1

@@ -22,7 +22,6 @@
 #include <gtk/gtk.h>
 
 /* glucosemeter.c */
-
 struct gm_driver_conn {
 	GIOChannel	*channel;
 	size_t		 length;
@@ -40,13 +39,11 @@ struct gm_state {
 	GtkTreeModel		*measurements;
 };
 
-int meas_insert(struct gm_state *state, int glucose, char *date, char *device);
-GtkTreeModel *meas_model(struct gm_state *state);
-int meas_model_fill(struct gm_state *state, GtkListStore *store);
-
+int		 meas_insert(struct gm_state *state, int glucose, char *date, char *device);
+GtkTreeModel	*meas_model(struct gm_state *state);
+int		 meas_model_fill(struct gm_state *state, GtkListStore *store);
 
 /* abfr.c */
-
 #define ABFR_MAX_ENTRIES	450
 
 // XXX: do these include the NULL terminator?
@@ -96,7 +93,7 @@ struct abfr_conn {
 	SLIST_HEAD(, abfr_entry) entries;
 };
 
-gboolean abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data);
-gboolean abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data);
-gboolean abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data);
-struct abfr_conn * abfr_conn_init(struct gm_state *state, char *dev);
+gboolean		 abfr_in(GIOChannel *gio, GIOCondition condition, gpointer data);
+gboolean		 abfr_out(GIOChannel *gio, GIOCondition condition, gpointer data);
+gboolean		 abfr_error(GIOChannel *gio, GIOCondition condition, gpointer data);
+struct abfr_conn	*abfr_conn_init(struct gm_state *state, char *dev);
