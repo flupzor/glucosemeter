@@ -15,6 +15,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdint.h>
+
+#include <sys/queue.h>
+
+#include <gtk/gtk.h>
+
 #include "glucosemeter.h"
 
 void devicemgmt_final(struct device *dev);
