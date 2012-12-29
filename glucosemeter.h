@@ -42,6 +42,8 @@ struct device {
 	struct gm_conf	*conf;
 	size_t		 length;
 	TAILQ_ENTRY(device)	 entry;
+
+	int		 is_processing;
 };
 
 struct driver {

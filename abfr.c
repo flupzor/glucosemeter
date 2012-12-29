@@ -684,8 +684,10 @@ abfr_in(struct device *dev, GIOChannel *gio)
 	struct abfr_dev *abfr_dev = (struct abfr_dev *)dev;
 	GString		*line;
 
-	if (abfr_dev->protocol_state == ABFR_FAIL) {
-		/* XXX: stop processing */
+	if (!dev->is_processing) {
+		DPRINTF(("%s: the device isn't processing events. This "
+			"should've never been hit\n", __func__));
+		return FALSE;
 	}
 
 	line = g_string_sized_new(100);
@@ -694,10 +696,12 @@ abfr_in(struct device *dev, GIOChannel *gio)
 
 	if (status == G_IO_STATUS_ERROR) {
 		DPRINTF(("%s: error occured\n", __func__));
-		/* XXX: stop processing */
-	} else if (status == G_IO_STATUS_AGAIN) {
-		DPRINTF(("%s: resource temp unavail.\n", __func__));
-	} else if (status == G_IO_STATUS_NORMAL) {
+		dev->is_processing = 0;
+
+		return FALSE;
+	}
+
+	if (status == G_IO_STATUS_NORMAL) {
 		/* Calculate the checksum before the newline terminators are cut off */
 		if (abfr_dev->protocol_state != ABFR_END)
 			abfr_dev->checksum += abfr_calc_checksum(line->str);
@@ -713,8 +717,13 @@ abfr_in(struct device *dev, GIOChannel *gio)
 
 	g_string_free(line, TRUE);
 
-	if (status == G_IO_STATUS_EOF)
+	if (status == G_IO_STATUS_EOF || abfr_dev->protocol_state == ABFR_DONE ||
+		abfr_dev->protocol_state == ABFR_FAIL) {
+
+		dev->is_processing = 0;
+		
 		return FALSE;
+	}
 
 	return TRUE;
 }
@@ -727,6 +736,12 @@ abfr_out(struct device *dev, GIOChannel *gio)
 	GError		*error = NULL;
 	GIOStatus	 status;
 	struct abfr_dev *abfr_dev = (struct abfr_dev *)dev;
+
+	if (!dev->is_processing) {
+		DPRINTF(("%s: the device isn't processing events. This "
+			"should've never been hit\n", __func__));
+		return FALSE;
+	}
 
 	if (abfr_dev->protocol_state != ABFR_SEND_MEM) {
 		return FALSE;
