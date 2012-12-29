@@ -221,21 +221,11 @@ main(int argc, char *argv[])
 	struct gm_conf	 conf;
 	int r;
 
-	struct abfr_dev *dev;
-
 	devicemgmt_init(&conf);
 	gtk_init(&argc, &argv);
 
-	if ((dev = calloc(1, sizeof(*dev))) == NULL) {
-		perror("calloc");
-		exit(EXIT_FAILURE);
-	}
-	dev->device.is_processing = 1;
-	dev->file = strdup("/dev/ttyU0");
-	dev->device.driver = &abfr_driver;
-	dev->device.conf = &conf;
-
-	TAILQ_INSERT_TAIL(&conf.devices, (struct device *)dev, entry);
+	if (parse_config(GM_CONFIG_FILE, &conf))
+		exit(1);
 
 	devicemgmt_start(&conf);
 

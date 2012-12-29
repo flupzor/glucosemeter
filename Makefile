@@ -1,5 +1,5 @@
 PROG=	glucosemeter
-SRCS=	glucosemeter.c abfr.c devicemgmt.c
+SRCS=	glucosemeter.c abfr.c devicemgmt.c parse.y
 
 MAN=	
 

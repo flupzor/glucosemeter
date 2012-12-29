@@ -21,6 +21,12 @@
 
 #include <gtk/gtk.h>
 
+/* parse.y */
+#define GM_CONFIG_FILE "glucosemeter.conf"
+
+struct gm_conf;
+int	 parse_config(const char *, struct gm_conf *);
+
 /* glucosemeter.c */
 struct device;
 struct gm_conf {
