@@ -637,8 +637,10 @@ abfr_line_end(struct abfr_dev *dev, char *line)
 	int r;
 
 	r = abfr_parse_checksum(line, &checksum);
-	if (r == -1)
+	if (r == -1) {
+		dev->protocol_state = ABFR_FAIL;
 		return;
+	}
 
 	if (dev->checksum == checksum) {
 		struct abfr_entry *e;
@@ -659,7 +661,13 @@ abfr_line_end(struct abfr_dev *dev, char *line)
 		}
 
 		DPRINTF(("%s: checksum verified!\n", __func__));
+
+		dev->protocol_state = ABFR_DONE;
+
+		return;
 	}
+
+	dev->protocol_state = ABFR_FAIL;
 }
 
 static void

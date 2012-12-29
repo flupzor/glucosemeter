@@ -108,6 +108,7 @@ struct abfr_dev {
 		ABFR_END,
 		ABFR_EMPTY,
 		ABFR_FAIL,
+		ABFR_DONE,
 	}				 protocol_state;
 	uint16_t			 checksum;
 	int				 nresults;
