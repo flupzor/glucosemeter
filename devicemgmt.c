@@ -17,6 +17,8 @@
 
 #include "glucosemeter.h"
 
+void devicemgmt_final(struct device *dev);
+
 void
 devicemgmt_init(struct gm_conf *conf)
 {
@@ -37,33 +39,61 @@ devicemgmt_start(struct gm_conf *conf)
 	}
 }
 
+void
+devicemgmt_final(struct device *dev)
+{
+	struct device	*idev;
+	struct gm_conf	*conf = dev->conf;
+	int		 processing = 0;
+
+	TAILQ_FOREACH(idev, &conf->devices, entry) {
+		processing += idev->is_processing;
+	}
+	if (!processing) {
+		printf("All done!\n");
+	}
+}
+
 gboolean
 devicemgmt_input(GIOChannel *gio, GIOCondition condition, gpointer data)
 {
-	struct device *dev = (struct device *)data;
-	struct driver *drv = (struct driver *)dev->driver;
+	struct device	*dev = (struct device *)data;
+	struct driver	*drv = (struct driver *)dev->driver;
+	gboolean	 stop;
 
-	printf("in\n");
+	stop = drv->driver_input(dev, gio);
 
-	return drv->driver_input(dev, gio);
+	devicemgmt_final(dev);
+
+	return stop;
 }
 
 gboolean
 devicemgmt_output(GIOChannel *gio, GIOCondition condition, gpointer data)
 {
-	struct device *dev = (struct device *)data;
-	struct driver *drv = (struct driver *)dev->driver;
+	struct device	*dev = (struct device *)data;
+	struct driver	*drv = (struct driver *)dev->driver;
+	gboolean	 stop;
 
-	return drv->driver_output(dev, gio);
+	stop = drv->driver_output(dev, gio);
+
+	devicemgmt_final(dev);
+
+	return stop;
 }
 
 gboolean
 devicemgmt_error(GIOChannel *gio, GIOCondition condition, gpointer data)
 {
-	struct device *dev = (struct device *)data;
-	struct driver *drv = (struct driver *)dev->driver;
+	struct device	*dev = (struct device *)data;
+	struct driver	*drv = (struct driver *)dev->driver;
+	gboolean	 stop;
 
-	return drv->driver_error(dev, gio);
+	stop = drv->driver_error(dev, gio);
+
+	devicemgmt_final(dev);
+
+	return stop;
 }
 
 void
