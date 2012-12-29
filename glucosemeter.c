@@ -230,6 +230,7 @@ main(int argc, char *argv[])
 		perror("calloc");
 		exit(EXIT_FAILURE);
 	}
+	dev->device.is_processing = 1;
 	dev->file = strdup("/dev/ttyU0");
 	dev->device.driver = &abfr_driver;
 	dev->device.conf = &conf;
