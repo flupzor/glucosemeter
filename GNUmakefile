@@ -11,8 +11,11 @@ LDADD+= -lbsd
 .c.o:
 	$(CC) -c $(CFLAGS) $<
 
-glucosemeter: glucosemeter.o abfr.o devicemgmt.o
-	$(CC) -o glucosemeter glucosemeter.o abfr.o devicemgmt.o $(LDADD)
+glucosemeter: glucosemeter.o abfr.o devicemgmt.o parse.o
+	$(CC) -o glucosemeter glucosemeter.o abfr.o devicemgmt.o parse.o $(LDADD)
+
+parse.c: parse.y
+	yacc -o parse.c parse.y
 
 clean:
 	rm *.o glucosemeter
