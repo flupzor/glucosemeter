@@ -18,4 +18,4 @@ parse.c: parse.y
 	yacc -o parse.c parse.y
 
 clean:
-	rm *.o glucosemeter
+	rm *.o glucosemeter parse.c
